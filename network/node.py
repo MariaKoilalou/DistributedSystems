@@ -1,64 +1,64 @@
-import socket
-import threading
-import sys
+import requests
+import json
 
+from blockchain.chain import Blockchain
+from wallet.wallet import Wallet
 
 class Node:
-    def __init__(self, host, port, n):
+    def __init__(self, host, port, blockchain, wallet):
         self.host = host
         self.port = port
-        self.n = n  # Total number of nodes or multiplier for initial coin distribution
-        self.blockchain = []
-        self.connections = []  # Initialize the connections list
-        # Automatically designate the first node as the bootstrap based on a condition
-        if self.port == 8001:  # Assuming port 8000 is reserved for the bootstrap node
-            self.create_genesis_block()
+        self.api_url = f'http://{host}:{port}/'
+        self.blockchain = blockchain
+        self.wallet = wallet
+        self.nodes = {}  # Other nodes' public keys mapped to their network addresses
 
-    def create_genesis_block(self):
-        genesis_block = {
-            'previous_hash': 1,
-            'validator': 0,
-            'transactions': [{'to': self.port, 'amount': 1000*n}] 
-        }
-        self.blockchain.append(genesis_block)
-        print("Genesis block created")
+    def register_with_bootstrap(self, bootstrap_url, public_key):
+        response = requests.post(bootstrap_url + '/register', json={'public_key': public_key, 'node_address': self.api_url})
+        if response.status_code == 200:
+            data = response.json()
+            self.nodes[data['node_id']] = data['node_address']
+            print('Registered with the bootstrap node')
+            return True
+        return False
 
-    def start_server(self):
-        server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        server.bind((self.host, self.port))
-        server.listen(5)
-        print(f"Node listening on {self.host}:{self.port}")
+    def broadcast_transaction(self, transaction):
+        for node_url in self.nodes.values():
+            requests.post(node_url + '/transactions/new', json=transaction.to_dict())
+        print('Transaction broadcasted to the network')
 
-        while True:
-            client, address = server.accept()
-            self.connections.append(client)
-            threading.Thread(target=self.handle_client, args=(client, address)).start()
+    def update_blockchain(self):
+        longest_chain = None
+        current_len = len(self.blockchain.chain)
 
-    def handle_client(self, client, address):
-        print(f"Connected to {address}")
-        while True:
-            try:
-                message = client.recv(1024).decode('utf-8')
-                if message:
-                    print(f"Message from {address}: {message}")
-            except:
-                break
-        client.close()
+        for node_url in self.nodes.values():
+            response = requests.get(node_url + '/blockchain')
+            if response.status_code == 200:
+                length = response.json()['length']
+                chain = response.json()['chain']
+                if length > current_len and self.blockchain.validate_chain(chain):
+                    current_len = length
+                    longest_chain = chain
 
-    def connect_to_peer(self, peer_host, peer_port):
-        peer = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        peer.connect((peer_host, peer_port))
-        self.connections.append(peer)
-        print(f"Connected to peer at {peer_host}:{peer_port}")
-        # Here you can implement further communication with the peer
+        if longest_chain:
+            self.blockchain.chain = longest_chain
+            return True
+        return False
 
-if __name__ == "__main__":
-    if len(sys.argv) != 4:
-        print("Usage: python node.py [host] [port] [n]")
-    else:
-        host = sys.argv[1]
-        port = int(sys.argv[2])
-        n = int(sys.argv[3])  # Add this line to capture 'n' from command line arguments
-        node = Node(host, port, n)
-        node.start_server()
+    def add_node(self, public_key, node_address):
+        self.nodes[public_key] = node_address
+
+if __name__ == '__main__':
+    # Example instantiation and usage
+    blockchain = Blockchain()  # Assuming a Blockchain class is defined elsewhere
+    wallet = Wallet()  # Assuming a Wallet class is defined elsewhere
+
+    # Node and Bootstrap node details
+    node = Node('localhost', 5001, blockchain, wallet)
+    bootstrap_url = 'http://localhost:5000'  # URL of the bootstrap node
+
+    # Register with the bootstrap node
+    node.register_with_bootstrap(bootstrap_url, wallet.public_key)
+
+    # Other operations like creating transactions, updating blockchain, etc.
 
