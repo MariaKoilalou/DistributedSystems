@@ -2,7 +2,8 @@ import requests
 import json
 
 from blockchain.chain import Blockchain
-from wallet.wallet import Wallet
+from wallet import Wallet
+from blockchain.block import Block
 
 class Node:
     def __init__(self, host, port, blockchain, wallet, stake=0):

@@ -2,13 +2,8 @@ from flask import Flask, request, jsonify
 import requests
 
 from node import Node
-from blockchain.chain import Blockchain
-from blockchain.block import Block
+from chain import Blockchain
 from blockchain.transaction import Transaction
-
-
-
-
 
 app = Flask(__name__)
 
