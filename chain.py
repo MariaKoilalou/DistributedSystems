@@ -1,28 +1,38 @@
 from block import Block
+
 import time
 import hashlib
 
 class Blockchain:
     def __init__(self):
         self.chain = []
-        self.create_genesis_block()
+        self.transaction_pool = []
 
-    def create_genesis_block(self):
-        """
-        Create the first block in the blockchain, known as the Genesis Block.
-        """
-        genesis_block = Block(index=0, transactions=[], validator="GenesisBlockValidator", previous_hash="0")
-        genesis_block.current_hash = genesis_block.calculate_hash()
-        self.chain.append(genesis_block)
-
-    def add_block(self, transactions, validator):
-        """
-        Add a new block to the blockchain.
-        """
-        previous_block = self.chain[-1]
-        new_block = Block(index=len(self.chain), transactions=transactions, validator=validator, previous_hash=previous_block.current_hash)
-        new_block.current_hash = new_block.calculate_hash()
-        self.chain.append(new_block)
+    # To evala sto node.py
+    # def create_genesis_block(self):
+    #     """
+    #     Create the first block in the blockchain, known as the Genesis Block.
+    #     """
+    #     genesis_block = Block(index=0, transactions=[], validator="GenesisBlockValidator", previous_hash="0")
+    #     genesis_block.current_hash = genesis_block.calculate_hash()
+    #     self.chain.append(genesis_block)
+    
+    def add_transaction_to_pool(self, transaction):
+        self.transaction_pool.append(transaction)
+        print('Transaction added to pool')
+        return
+    
+    def add_block(self, validator):
+        # Only create a new block if there are transactions in the pool
+        if len(self.transaction_pool) > 0:
+            previous_block = self.chain[-1]
+            new_block = Block(index=len(self.chain), transactions=self.transaction_pool, validator=validator, previous_hash=previous_block.current_hash)
+            new_block.current_hash = new_block.calculate_hash()
+            self.chain.append(new_block)
+            self.transaction_pool = []  # Clear the transaction pool after adding to the block
+            print("Block added to the chain")
+        else:
+            print("No transactions to add")
 
     def validate_chain(self):
         """

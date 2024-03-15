@@ -2,7 +2,7 @@ import hashlib
 import json
 import Crypto
 from Crypto.PublicKey import RSA
-from Crypto.Signature import PKCS1_v1_5
+from Crypto.Signature import pkcs1_15
 from Crypto.Hash import SHA256
 
 class Transaction:
@@ -29,11 +29,15 @@ class Transaction:
         })
         return hashlib.sha256(transaction_details.encode()).hexdigest()
 
-    def sign_transaction(self, signature):
+
+    def sign_transaction(self, private_key):
         """
-        Set the transaction's signature. The signature should be generated externally using the sender's private key.
+        Sign the transaction with the sender's private key.
         """
-        self.signature = signature
+        signer = pkcs1_15.new(RSA.import_key(private_key))
+        transaction_data = json.dumps(self.to_dict(exclude_signature=True), sort_keys=True).encode()
+        transaction_hash = SHA256.new(transaction_data)
+        self.signature = signer.sign(transaction_hash)
 
     def to_dict(self):
         """
@@ -49,12 +53,13 @@ class Transaction:
             'transaction_id': self.transaction_id,
             'signature': self.signature
         }
+    
 
     def verify_signature(self, public_key):
         """
         Verify the signature of the transaction using the provided public key.
         """
-        verifier = PKCS1_v1_5.new(RSA.import_key(public_key))
+        verifier = pkcs1_15.new(RSA.import_key(public_key))
         transaction_data = json.dumps(self.to_dict(), sort_keys=True).encode()
         transaction_hash = SHA256.new(transaction_data)
         return verifier.verify(transaction_hash, self.signature)

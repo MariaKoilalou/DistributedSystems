@@ -1,63 +1,81 @@
 import Crypto
 from Crypto.PublicKey import RSA
 import base64
+from Crypto.Signature import pkcs1_15
+from Crypto.Hash import SHA256
 
 class Wallet:
     def __init__(self):
-        key_length = 1024
+        key_length = 1024  # You might consider using a larger key size for better security, e.g., 2048
         rsaKeys = RSA.generate(key_length)
-        self.private_key = rsaKeys.export_key().decode('utf-8')  # Convert bytes to string
-        self.public_key = base64.b64encode(rsaKeys.publickey().export_key()).decode('utf-8')  # Convert bytes to Base64 string
-        self.address = self.public_key  # You may want to store the address in a different format
-        self.utxos = []
-        self.utxoslocal = []
-        self.balance = 0
+        self.private_key = rsaKeys.export_key().decode('utf-8')  # Convert bytes to string for easier handling
+        self.public_key = base64.b64encode(rsaKeys.publickey().export_key()).decode('utf-8')  # Convert bytes to Base64 string for easier transmission and storage
+        self.address = self.public_key  # In a real application, you might use a more user-friendly address format
+        self.balance = 0  # Initially, the wallet's balance is 0
 
-    # Your other wallet methods here
+    def sign_transaction(self, transaction):
+        """
+        Sign a transaction with the wallet's private key.
+        """
+        # Convert the transaction into a string and then to bytes
+        transaction_string = str(transaction)
+        transaction_bytes = transaction_string.encode('utf-8')
 
+        # Create a hash of the transaction
+        transaction_hash = SHA256.new(transaction_bytes)
 
-# import Crypto
-# import Crypto.Random
-# from Crypto.Hash import SHA
-# from Crypto.PublicKey import RSA
-# from Crypto.Signature import PKCS1_v1_5
+        # Sign the transaction hash with the private key
+        private_key = RSA.import_key(self.private_key)
+        signature = pkcs1_15.new(private_key).sign(transaction_hash)
 
-# import hashlib
-# import json
-# from time import time
-# from urllib.parse import urlparse
-# from uuid import uuid4
+        # Return the signature in Base64 to ensure it's easily transmittable
+        return base64.b64encode(signature).decode('utf-8')
 
-# class Wallet:
+    def verify_signature(self, transaction, signature, sender_public_key):
+        """
+        Verify the signature of a transaction.
+        """
+        # Convert the transaction into a string and then to bytes
+        transaction_string = str(transaction)
+        transaction_bytes = transaction_string.encode('utf-8')
 
-# 	def __init__(self):
-# 		key_length = 1024
-# 		rsaKeys = RSA.generate(key_length)
-# 		self.private_key = rsaKeys.export_key()
-# 		self.public_key = rsaKeys.publickey().export_key()
-# 		self.address = self.public_key
-# 		self.utxos = []
-# 		self.utxoslocal = []
-# 		self.balance = 0
+        # Create a hash of the transaction
+        transaction_hash = SHA256.new(transaction_bytes)
 
-# 	# def get_balance(self):
-#     #     """
-#     #     Get the current balance of the wallet.
-#     #     """
-#     #     return self.balance
-	
-# 	# def update_balance(self, amount):
-#     #     """
-#     #     Update the balance of the wallet by adding the given amount.
-#     #     """
-#     #     self.balance += amount
+        # Decode the sender's public key and signature from Base64
+        sender_public_key = RSA.import_key(base64.b64decode(sender_public_key))
+        signature = base64.b64decode(signature)
 
-#     # def deduct_balance(self, amount):
-#     #     """
-#     #     Deduct the given amount from the wallet balance.
-#     #     """
-#     #     if self.balance >= amount:
-#     #         self.balance -= amount
-#     #         return True
-#     #     else:
-#     #         return False
+        try:
+            # Attempt to verify the signature
+            pkcs1_15.new(sender_public_key).verify(transaction_hash, signature)
+            return True  # The signature is valid
+        except (ValueError, TypeError):
+            return False  # The signature is invalid
+
+    # Add methods to update and get the wallet's balance as needed
+    def update_balance(self, amount):
+        """
+        Update the wallet's balance.
+        """
+        self.balance += amount
+
+    def get_balance(self):
+        """
+        Get the current balance of the wallet.
+        """
+        return self.balance
+
+# Example usage
+if __name__ == "__main__":
+    my_wallet = Wallet()
+    transaction = {"from": my_wallet.address, "to": "RecipientPublicKey", "amount": 100}
+    signature = my_wallet.sign_transaction(transaction)
+
+    # Simulate sending the transaction and signature to a recipient
+    print("Transaction:", transaction)
+    print("Signature:", signature)
+
+    # The recipient (or a node in the network) would verify the signature like this
+    is_valid = my_wallet.verify_signature(transaction, signature, my_wallet.public_key)
+    print("Is the signature valid?", is_valid)
