@@ -1,5 +1,9 @@
 import hashlib
 import json
+import Crypto
+from Crypto.PublicKey import RSA
+from Crypto.Signature import PKCS1_v1_5
+from Crypto.Hash import SHA256
 
 class Transaction:
     def __init__(self, sender_address, receiver_address, type_of_transaction, amount, message, nonce):
@@ -45,6 +49,15 @@ class Transaction:
             'transaction_id': self.transaction_id,
             'signature': self.signature
         }
+
+    def verify_signature(self, public_key):
+        """
+        Verify the signature of the transaction using the provided public key.
+        """
+        verifier = PKCS1_v1_5.new(RSA.import_key(public_key))
+        transaction_data = json.dumps(self.to_dict(), sort_keys=True).encode()
+        transaction_hash = SHA256.new(transaction_data)
+        return verifier.verify(transaction_hash, self.signature)
 
 # Example usage
 if __name__ == "__main__":

@@ -20,3 +20,26 @@ class Wallet:
 		self.address = self.public_key
 		self.utxos = []
 		self.utxoslocal = []
+		self.balance = 0
+
+	def get_balance(self):
+        """
+        Get the current balance of the wallet.
+        """
+        return self.balance
+	
+	def update_balance(self, amount):
+        """
+        Update the balance of the wallet by adding the given amount.
+        """
+        self.balance += amount
+
+    def deduct_balance(self, amount):
+        """
+        Deduct the given amount from the wallet balance.
+        """
+        if self.balance >= amount:
+            self.balance -= amount
+            return True
+        else:
+            return False

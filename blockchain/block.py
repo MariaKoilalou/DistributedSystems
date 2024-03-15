@@ -19,6 +19,21 @@ class Block:
         block_string = f"{self.index}{self.timestamp}{json.dumps(self.transactions)}{self.validator}{self.previous_hash}"
         return hashlib.sha256(block_string.encode()).hexdigest()
 
+    def to_dict(self):
+        """
+        Convert the block details into a dictionary for easier processing and transmission.
+        """
+        return {
+            'index': self.index,
+            'timestamp': self.timestamp,
+            'transactions': self.transactions,
+            'validator': self.validator,
+            'previous_hash': self.previous_hash,
+            'current_hash': self.current_hash,
+            'capacity': self.capacity
+        }
+
+
     def __repr__(self):
         return f"Block(Index: {self.index}, Hash: {self.current_hash}, Prev Hash: {self.previous_hash}, Transactions: {len(self.transactions)})"
 
