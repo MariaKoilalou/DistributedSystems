@@ -1,3 +1,4 @@
+import random
 from block import Block
 
 import time
@@ -53,6 +54,25 @@ class Blockchain:
         print("Blockchain is valid.")
         return True
 
+    def PoS_Choose_Minter(self, block):
+        """
+        Validate the block by selecting a validator based on their stake.
+        """
+
+        total_stakes = sum(self.stakes.values())
+        if total_stakes == 0:
+            return False 
+
+        stake_target = random.uniform(0, total_stakes)
+        current = 0
+        for node_identifier, stake_amount in self.stakes.items():
+            current += stake_amount
+            if current >= stake_target:
+                validator = node_identifier
+                break
+
+        return validator
+    
 # Example usage
 if __name__ == "__main__":
     blockchain = Blockchain()

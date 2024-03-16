@@ -10,6 +10,7 @@ class Node:
     def __init__(self, host, port, blockchain, wallet, stake=0, is_bootstrap=False, n=None, total_nodes=1):
         self.host = host
         self.port = port
+        self.stake_amount = stake  
         self.is_bootstrap = is_bootstrap
         self.api_url = f'http://{host}:{port}/'
         self.blockchain = blockchain
@@ -17,7 +18,7 @@ class Node:
         self.stakes = {}  # Dictionary to store stakes of other nodes
         self.balances = {}  # Dictionary to store balances of other nodes
         self.nodes = {}  
-        self.stake = stake  # Dictionary to store staking information for each node
+        
         
         if is_bootstrap:
             self.id_counter = 1  # Αρχικό ID για νέους κόμβους
