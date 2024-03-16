@@ -1,26 +1,23 @@
 from flask import Flask, request, jsonify
-import requests
-
-from node import Node
-from blockchain.chain import Blockchain
-from blockchain.block import Block
-from blockchain.transaction import Transaction
-
-
-
-
+from node import Node  # Assuming your Node class is inside a folder named 'network'
+from chain import Blockchain
+from transaction import Transaction
 
 app = Flask(__name__)
-
-# Assuming 'Blockchain', 'Transaction', and 'Node' classes are defined elsewhere
-blockchain = Blockchain()
 node = Node()
+blockchain = Blockchain()
 
 @app.route('/register', methods=['POST'])
 def register_node():
     values = request.get_json()
-    node.register(values['public_key'], values['node_address'])
-    return "Node registered", 200
+    if 'public_key' not in values or 'node_address' not in values:
+        return "Missing values", 400
+    node_id = node.register(values['public_key'], values['node_address'])
+    response = {
+        'message': 'New node has been added',
+        'node_id': node_id
+    }
+    return jsonify(response), 201
 
 @app.route('/transactions/new', methods=['POST'])
 def new_transaction():
@@ -32,6 +29,7 @@ def new_transaction():
         return "Transaction added", 201
     else:
         return "Invalid transaction", 406
+    
 
 @app.route('/blockchain', methods=['GET'])
 def get_full_chain():
@@ -50,17 +48,5 @@ def consensus():
         response = {'message': 'Our chain is authoritative'}
     return jsonify(response), 200
 
-@app.route('/broadcast/block', methods=['POST'])
-def broadcast_block():
-    values = request.get_json()
-    block = values['block']
-    # Assume 'Blockchain' class has a method to validate and add blocks
-    if blockchain.add_block(block):
-        return "Block added", 200
-    else:
-        return "Block rejected", 406
-
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
-
-
