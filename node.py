@@ -2,7 +2,7 @@ import requests
 import json
 
 from wallet import Wallet
-from chain import Blockchain
+from blockchain import Blockchain
 from transaction import Transaction
 from block import Block
 

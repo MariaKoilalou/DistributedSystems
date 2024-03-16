@@ -1,6 +1,6 @@
 from flask import Flask, request, jsonify
 from node import Node  # Assuming your Node class is inside a folder named 'network'
-from chain import Blockchain
+from blockchain import Blockchain
 from transaction import Transaction
 
 app = Flask(__name__)
