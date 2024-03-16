@@ -8,6 +8,7 @@ class Blockchain:
     def __init__(self):
         self.chain = []
         self.transaction_pool = []
+        self.stakes = []
 
     # To evala sto node.py
     # def create_genesis_block(self):
@@ -23,7 +24,7 @@ class Blockchain:
         print('Transaction added to pool')
         return
     
-    def add_block(self, validator):
+    def mint_block(self, validator):
         # Only create a new block if there are transactions in the pool
         if len(self.transaction_pool) > 0:
             previous_block = self.chain[-1]
