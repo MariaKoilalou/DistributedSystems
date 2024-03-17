@@ -66,6 +66,12 @@ class Wallet:
         """
         return self.balance
 
+    def show_balance(self):
+        """
+        Print the current balance of the wallet to the console.
+        """
+        print(f"Current Balance: {self.balance} BTC")
+        
 # Example usage
 if __name__ == "__main__":
     my_wallet = Wallet()
