@@ -34,10 +34,14 @@ class Transaction:
         """
         Sign the transaction with the sender's private key.
         """
-        signer = pkcs1_15.new(RSA.import_key(private_key))
-        transaction_data = json.dumps(self.to_dict(exclude_signature=True), sort_keys=True).encode()
-        transaction_hash = SHA256.new(transaction_data)
-        self.signature = signer.sign(transaction_hash)
+                # Check if this is a genesis transaction
+        if self.sender_address == "0" and private_key == "genesis_signature":
+            self.signature = "genesis_signature"
+        else:
+            signer = pkcs1_15.new(RSA.import_key(private_key))
+            transaction_data = json.dumps(self.to_dict(exclude_signature=True), sort_keys=True).encode()
+            transaction_hash = SHA256.new(transaction_data)
+            self.signature = signer.sign(transaction_hash)
 
     def to_dict(self):
         """

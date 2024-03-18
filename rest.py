@@ -4,20 +4,32 @@ from blockchain import Blockchain
 from transaction import Transaction
 
 app = Flask(__name__)
-node = Node()
+# This list will store registered nodes
+registered_nodes = []
 blockchain = Blockchain()
-
+ 
 @app.route('/register', methods=['POST'])
 def register_node():
     values = request.get_json()
+
+    # Check for required fields in the incoming JSON
     if 'public_key' not in values or 'node_address' not in values:
         return "Missing values", 400
-    node_id = node.register(values['public_key'], values['node_address'])
+
+    # Add the node to the registered nodes list
+    registered_nodes.append({
+        'public_key': values['public_key'],
+        'node_address': values['node_address']
+    })
+
     response = {
         'message': 'New node has been added',
-        'node_id': node_id
+        'total_nodes': len(registered_nodes),
+        'nodes': registered_nodes
     }
     return jsonify(response), 201
+
+
 
 @app.route('/transactions/new', methods=['POST'])
 def new_transaction():

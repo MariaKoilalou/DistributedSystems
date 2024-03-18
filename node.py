@@ -6,11 +6,15 @@ from blockchain import Blockchain
 from transaction import Transaction
 from block import Block
 
+import argparse
+
+
 class Node:
     def __init__(self, host, port, blockchain, wallet, stake=0, is_bootstrap=False, n=None, total_nodes=1):
         self.host = host
         self.port = port
         self.stake_amount = stake  
+        self.total_nodes = total_nodes
         self.is_bootstrap = is_bootstrap
         self.api_url = f'http://{host}:{port}/'
         self.blockchain = blockchain
@@ -26,7 +30,8 @@ class Node:
             self.initialize_genesis_block()
 
 
-    def initialize_genesis_block(self, total_nodes):
+    def initialize_genesis_block(self):
+        total_nodes = self.total_nodes
         # Create the initial transaction for the genesis block
         genesis_transaction = Transaction(
             sender_address="0",  # Using 0 as a placeholder for the genesis transaction
@@ -61,6 +66,7 @@ class Node:
             return True
         return False
     
+
     def register_node(self, public_key, node_address):
         """Register a new node in the network, assign it a unique ID, and transfer 1000 BCC to it."""
         if not self.is_bootstrap:
@@ -244,15 +250,23 @@ class Node:
 
 
 if __name__ == '__main__':
-    # Example instantiation and usage
+    parser = argparse.ArgumentParser(description='Run a BlockChat node.')
+    parser.add_argument('--host', type=str, default='localhost', help='Host address for the node')
+    parser.add_argument('--port', type=int, required=True, help='Port number for the node')
+    parser.add_argument('--is_bootstrap', action='store_true', help='Flag to set this node as the bootstrap node')
+    
+    args = parser.parse_args()
+    
     blockchain = Blockchain()  # Assuming a Blockchain class is defined elsewhere
     wallet = Wallet()  # Assuming a Wallet class is defined elsewhere
 
-    # Node and Bootstrap node details
-    node = Node('localhost', 5001, blockchain, wallet)
-    bootstrap_url = 'http://localhost:5000'  # URL of the bootstrap node
+    node = Node(args.host, args.port, blockchain, wallet, is_bootstrap=args.is_bootstrap)
 
-    # Register with the bootstrap node
-    node.register_with_bootstrap(bootstrap_url, wallet.public_key)
+    if not args.is_bootstrap:
+        bootstrap_url = 'http://192.168.1.10:5000'  # Adjust the bootstrap URL as needed
+        success = node.register_with_bootstrap(bootstrap_url, node.wallet.public_key)
+        if success:
+            print("Registration with the bootstrap node was successful.")
+        else:
+            print("Failed to register with the bootstrap node.")
 
-    # Other operations like creating transactions, updating blockchain, etc.

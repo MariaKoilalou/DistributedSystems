@@ -28,14 +28,33 @@ class Blockchain:
         # Only create a new block if there are transactions in the pool
         if len(self.transaction_pool) > 0:
             previous_block = self.chain[-1]
+            previous_hash = previous_block.current_hash if previous_block else "0"
             new_block = Block(index=len(self.chain), transactions=self.transaction_pool, validator=validator, previous_hash=previous_block.current_hash)
             new_block.current_hash = new_block.calculate_hash()
-            self.chain.append(new_block)
+            self.add_block(new_block)
             self.transaction_pool = []  # Clear the transaction pool after adding to the block
             print("Block added to the chain")
         else:
             print("No transactions to add")
 
+    def add_block(self, block):
+        """
+        Add a new block to the blockchain.
+        
+        :param block: The block to be added.
+        """
+        # If it's the first block and the chain is empty, it's considered the Genesis block
+        if not self.chain:
+            if block.index != 0:
+                raise Exception("The first block must be the Genesis block with index 0")
+        else:
+            # Ensure the new block follows the last block on the chain
+            if block.previous_hash != self.chain[-1].current_hash:
+                raise Exception("The new block's previous hash must match the last block's hash")
+
+        self.chain.append(block)
+        print(f"Block {block.index} added to the chain")
+        
     def validate_chain(self):
         """
         Validate the current blockchain to ensure integrity.
