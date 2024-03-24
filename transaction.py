@@ -16,6 +16,8 @@ class Transaction:
         self.transaction_id = self.calculate_transaction_id()
         self.signature = None  # To be set by the transaction signing method
 
+
+
     def calculate_transaction_id(self):
         """
         Generate a transaction ID by hashing some of the transaction's details.
@@ -28,20 +30,6 @@ class Transaction:
             'nonce': self.nonce
         })
         return hashlib.sha256(transaction_details.encode()).hexdigest()
-
-
-    def sign_transaction(self, private_key):
-        """
-        Sign the transaction with the sender's private key.
-        """
-                # Check if this is a genesis transaction
-        if self.sender_address == "0" and private_key == "genesis_signature":
-            self.signature = "genesis_signature"
-        else:
-            signer = pkcs1_15.new(RSA.import_key(private_key))
-            transaction_data = json.dumps(self.to_dict(exclude_signature=True), sort_keys=True).encode()
-            transaction_hash = SHA256.new(transaction_data)
-            self.signature = signer.sign(transaction_hash)
 
     def to_dict(self):
         """

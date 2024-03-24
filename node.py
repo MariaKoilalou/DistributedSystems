@@ -18,7 +18,7 @@ class Node:
         self.is_bootstrap = is_bootstrap
         self.api_url = f'http://{host}:{port}/'
         self.blockchain = blockchain
-        self.wallet = Wallet()
+        self.wallet = wallet
         self.stakes = {}  # Dictionary to store stakes of other nodes
         self.balances = {}  # Dictionary to store balances of other nodes
         self.nodes = {}  
@@ -41,14 +41,16 @@ class Node:
                 message="Genesis Block",
                 nonce=0
             )
-            genesis_transaction.sign_transaction("genesis_signature")
+            # Use the wallet's sign_transaction method
+            signature = self.wallet.sign_transaction(genesis_transaction.to_dict())
+            genesis_transaction.signature = signature  # Directly set the signature attribute
             genesis_block = Block(
                 index=0,
                 transactions=[genesis_transaction.to_dict()],
                 validator=self.wallet.public_key,
                 previous_hash="1"
             )
-            self.blockchain.add_block(genesis_block.to_dict())
+            self.blockchain.add_block(genesis_block)
 
 
     def register_with_bootstrap(self, bootstrap_url, public_key):
@@ -67,46 +69,64 @@ class Node:
             print("This node is not the bootstrap node.")
             return False
         
-        node_id = self.node_id_counter
+        node_id = self.total_nodes
         self.nodes[public_key] = {"id": node_id, "address": node_address}
-        self.node_id_counter += 1  # Prepare ID for the next node
+        self.total_nodes += 1  # Prepare ID for the next node
         print(f"Node {node_id} registered with public key {public_key}.")
 
         # Transfer 1000 BCC from the bootstrap node to the new node
         self.transfer_bcc_to_new_node(public_key, 1000)
 
-        # After registering the new node, broadcast the updated nodes and blockchain to all nodes
-        self.broadcast_updates()
+        # # After registering the new node, broadcast the updated nodes and blockchain to all nodes
+        # self.broadcast_updates()
 
         return True
 
 
-    # Niko des ti thelei gia to proof of stake edw 
     def transfer_bcc_to_new_node(self, recipient_public_key, amount):
-        """Create and execute a transaction to transfer BCC from the bootstrap node to a new node."""
-        # Assuming the bootstrap node's wallet has a method to create a signed transaction
-        transaction = self.wallet.create_signed_transaction(
-            recipient_public_key, 
-            amount, 
-            message="Welcome to the network!"
+        """
+        Create and execute a transaction to transfer BCC from this node to a new node,
+        then mint a new block containing this transaction.
+        """
+        # Step 1: Create a signed transaction using the wallet
+        signed_transaction = self.wallet.create_signed_transaction(
+            recipient_address=recipient_public_key,
+            amount=amount,
+            message="Welcome to the network!",
+            nonce=self.get_next_nonce()  # Assuming a method to manage nonce
         )
-        
-        # Add the transaction to the blockchain
-        self.blockchain.add_transaction(transaction)
 
-        # Assuming a method to mine transactions and add them as a new block
-        self.mine_transactions() 
+        # Assuming the signed_transaction is a dictionary with all needed fields
+        # and Transaction class can initialize from such a dictionary
+        transaction = Transaction(**signed_transaction)
+
+        # Step 2: Add the transaction to the transaction pool
+        self.blockchain.add_transaction_to_pool(transaction)
+
+        # Step 3: Mint a new block with transactions from the pool
+        # Assuming 'mint_block' will handle transaction validation
+        self.blockchain.mint_block(self.wallet.public_key)  # Validator is the current node's public key
 
         print(f"Transferred {amount} BCC to new node with public key {recipient_public_key}.")
 
-    # Nomizw den xreiazetai giati ama mpei node mono o bootstrap mporei na ton valei 
-    # def add_node(self, public_key, node_address, balance_amount=0, stake_amount=0):
-    #     """
-    #     Add a new node to the network.
-    #     """
-    #     self.nodes[public_key] = node_address
-    #     self.update_balance(public_key, balance_amount)
-    #     self.update_staking(public_key, stake_amount)
+
+    def get_next_nonce(self):
+        """
+        Retrieve the next nonce for transactions from this node by inspecting the transaction history.
+        The nonce is incremented for each new transaction to ensure uniqueness.
+        """
+        max_nonce = 0  # Start with 0, assuming no transactions yet
+
+        # Iterate through the blockchain to find transactions with this node's address as the sender
+        for block in self.blockchain.chain:
+            for transaction in block.transactions:
+                # Assuming 'transactions' in a block is a list of transaction dictionaries
+                # And each transaction dictionary has 'sender_address' and 'nonce' keys
+                if transaction['sender_address'] == self.wallet.address:
+                    max_nonce = max(max_nonce, transaction['nonce'])
+
+        # The next nonce should be one more than the max found in the transaction history
+        return max_nonce + 1
 
 
     def stake(self, amount):
@@ -248,7 +268,7 @@ if __name__ == '__main__':
     parser.add_argument('--host', type=str, default='localhost', help='Host address for the node')
     parser.add_argument('--port', type=int, required=True, help='Port number for the node')
     parser.add_argument('--is_bootstrap', action='store_true', help='Flag to set this node as the bootstrap node')
-    
+
     args = parser.parse_args()
     
     blockchain = Blockchain()  # Assuming a Blockchain class is defined elsewhere
