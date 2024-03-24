@@ -30,7 +30,6 @@ def register_node():
     return jsonify(response), 201
 
 
-
 @app.route('/transactions/new', methods=['POST'])
 def new_transaction():
     values = request.get_json()

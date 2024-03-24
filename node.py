@@ -18,7 +18,7 @@ class Node:
         self.is_bootstrap = is_bootstrap
         self.api_url = f'http://{host}:{port}/'
         self.blockchain = blockchain
-        self.wallet = wallet
+        self.wallet = Wallet()
         self.stakes = {}  # Dictionary to store stakes of other nodes
         self.balances = {}  # Dictionary to store balances of other nodes
         self.nodes = {}  
@@ -32,29 +32,23 @@ class Node:
 
     def initialize_genesis_block(self):
         total_nodes = self.total_nodes
-        # Create the initial transaction for the genesis block
-        genesis_transaction = Transaction(
-            sender_address="0",  # Using 0 as a placeholder for the genesis transaction
-            receiver_address=self.wallet.public_key,  # Assuming the wallet has a public_key attribute
-            type_of_transaction="genesis",
-            amount=1000 * total_nodes,
-            message="Genesis Block Transaction",
-            nonce=0  # Nonce can be 0 or any value for the genesis transaction
-        )
-        
-        # Manually set the signature of the genesis transaction to None or any placeholder value
-        genesis_transaction.sign_transaction("genesis_signature")
-
-        # Create the genesis block
-        genesis_block = Block(
-            index=0,
-            transactions=[genesis_transaction.to_dict()],  # The block expects a list of transactions
-            validator=self.wallet.public_key,  # The bootstrap node acts as the validator for the genesis block
-            previous_hash="1"  # As per your requirement
-        )
-        
-        # Add the genesis block to the blockchain
-        self.blockchain.add_block(genesis_block)
+        if len(self.blockchain.chain) == 0:
+            genesis_transaction = Transaction(
+                sender_address="0",
+                receiver_address=self.wallet.public_key,
+                type_of_transaction="genesis",
+                amount=1000 * total_nodes,
+                message="Genesis Block",
+                nonce=0
+            )
+            genesis_transaction.sign_transaction("genesis_signature")
+            genesis_block = Block(
+                index=0,
+                transactions=[genesis_transaction.to_dict()],
+                validator=self.wallet.public_key,
+                previous_hash="1"
+            )
+            self.blockchain.add_block(genesis_block.to_dict())
 
 
     def register_with_bootstrap(self, bootstrap_url, public_key):
