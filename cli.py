@@ -41,7 +41,6 @@ while (1):
             node_instance.sendTransCli(recipient_address, amount)
         else:
             print("Invalid command format. Expected: 't <recipient_address> <amount>'")
-
     elif action.startswith('stake '):
         parts = action.split()
         if len(parts) == 2:

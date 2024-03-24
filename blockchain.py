@@ -9,15 +9,6 @@ class Blockchain:
         self.chain = []
         self.transaction_pool = []
         self.stakes = []
-
-    # To evala sto node.py
-    # def create_genesis_block(self):
-    #     """
-    #     Create the first block in the blockchain, known as the Genesis Block.
-    #     """
-    #     genesis_block = Block(index=0, transactions=[], validator="GenesisBlockValidator", previous_hash="0")
-    #     genesis_block.current_hash = genesis_block.calculate_hash()
-    #     self.chain.append(genesis_block)
     
     def add_transaction_to_pool(self, transaction):
         self.transaction_pool.append(transaction)
@@ -92,6 +83,15 @@ class Blockchain:
                 break
 
         return validator
+    
+    def get_last_block(self):
+        """
+        Retrieve the last block in the blockchain.
+        """
+        if self.chain:
+            return self.chain[-1]
+        else:
+            return None
     
 # Example usage
 if __name__ == "__main__":

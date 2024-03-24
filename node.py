@@ -262,6 +262,55 @@ class Node:
             return True
         return False
 
+    def view(self):
+        """
+        View last transactions: print the transactions contained in the last validated block
+        of the BlockChat blockchain.
+        """
+        last_block = self.blockchain.get_last_block()
+        if last_block:
+            transactions = last_block.transactions
+            print("Last transactions:")
+            for transaction in transactions:
+                print(transaction)
+        else:
+            print("Blockchain is empty or not synchronized.")
+
+    def sendTransCli(self, recipient_address, amount):
+        """
+        Send a transaction to the recipient address with the specified amount.
+        """
+        # Validate recipient address and amount (you may need additional validation logic here)
+        if not recipient_address:
+            print("Recipient address is required.")
+            return
+
+        try:
+            amount = float(amount)
+        except ValueError:
+            print("Invalid amount. Please enter a numeric value.")
+            return
+
+        # Create a transaction object
+        transaction = Transaction(
+            sender_address=self.wallet.public_key,
+            receiver_address=recipient_address,
+            amount=float(amount),
+            type_of_transaction="regular",  # Specify the transaction type here
+            message="Transaction message",
+            nonce=self.get_next_nonce()  # Assuming a method to manage nonce
+        )
+
+        # Validate the transaction
+        is_valid, message = self.validate_transaction(transaction)
+        if not is_valid:
+            print(f"Transaction validation failed: {message}")
+            return
+
+        # Broadcast the transaction to the network
+        self.broadcast_transaction(transaction)
+        print("Transaction sent successfully.")
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Run a BlockChat node.')
