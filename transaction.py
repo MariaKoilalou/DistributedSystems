@@ -26,7 +26,6 @@ class Transaction:
         self.signature = None  # To be set by the transaction signing method 
 
 
-
     def calculate_transaction_id(self):
         """
         Generate a transaction ID by hashing some of the transaction's details.
