@@ -1,9 +1,8 @@
-import json
-import Crypto
-from Crypto.PublicKey import RSA
+import crypto
+from crypto.PublicKey import RSA
 import base64
-from Crypto.Signature import pkcs1_15
-from Crypto.Hash import SHA256
+from crypto.Signature import pkcs1_15
+from crypto.Hash import SHA256
 
 class Wallet:
     def __init__(self):
@@ -14,21 +13,21 @@ class Wallet:
         self.address = self.public_key  # In a real application, you might use a more user-friendly address format
         self.balance = 0  # Initially, the wallet's balance is 0
 
-
     def sign_transaction(self, transaction):
         """
         Sign a transaction with the wallet's private key.
         """
-        if self.address == "0" and private_key == "genesis_signature":
-            self.signature = "genesis_signature"
-        else:
-            transaction_string = json.dumps(transaction, sort_keys=True)
-            transaction_bytes = transaction_string.encode('utf-8')
-            transaction_hash = SHA256.new(transaction_bytes)
-            private_key = RSA.import_key(self.private_key)
-            signer = pkcs1_15.new(private_key)
-            signature = signer.sign(transaction_hash)
-            return base64.b64encode(signature).decode('utf-8')
+        # Convert the transaction into a string and then to bytes
+        transaction_string = str(transaction)
+        transaction_bytes = transaction_string.encode('utf-8')
+
+        # Create a hash of the transaction
+        transaction_hash = SHA256.new(transaction_bytes)
+
+        # Sign the transaction hash with the private key
+        private_key = RSA.import_key(self.private_key)
+        signature = pkcs1_15.new(private_key).sign(transaction_hash)
+
         # Return the signature in Base64 to ensure it's easily transmittable
         return base64.b64encode(signature).decode('utf-8')
 
@@ -36,33 +35,24 @@ class Wallet:
         """
         Verify the signature of a transaction.
         """
-        transaction_string = json.dumps(transaction, sort_keys=True)
+        # Convert the transaction into a string and then to bytes
+        transaction_string = str(transaction)
         transaction_bytes = transaction_string.encode('utf-8')
+
+        # Create a hash of the transaction
         transaction_hash = SHA256.new(transaction_bytes)
+
+        # Decode the sender's public key and signature from Base64
         sender_public_key = RSA.import_key(base64.b64decode(sender_public_key))
         signature = base64.b64decode(signature)
+
         try:
+            # Attempt to verify the signature
             pkcs1_15.new(sender_public_key).verify(transaction_hash, signature)
-            return True
+            return True  # The signature is valid
         except (ValueError, TypeError):
-            return False
+            return False  # The signature is invalid
 
-    def create_signed_transaction(self, recipient_address, amount, message, nonce):
-        """
-        Create a new transaction with the given details and sign it with the wallet's private key.
-        """
-        # Construct the transaction details
-        transaction_details = {
-            'sender_address': self.address,  # Use the wallet's address as the sender
-            'recipient_address': recipient_address,
-            'amount': amount,
-            'message': message,
-            'nonce': nonce,
-        }
-
-        transaction_details['signature'] = self.sign_transaction(transaction_details)
-        return transaction_details
-    
     # Add methods to update and get the wallet's balance as needed
     def update_balance(self, amount):
         """
@@ -75,13 +65,6 @@ class Wallet:
         Get the current balance of the wallet.
         """
         return self.balance
-
-    def show_balance(self):
-        """
-        Print the current balance of the wallet to the console.
-        """
-        print(f"Current Balance: {self.balance} BTC")
-
 
 # Example usage
 if __name__ == "__main__":
