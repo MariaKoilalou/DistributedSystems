@@ -115,7 +115,6 @@ class Node:
         """
         if amount < 0:
             return False, "Stake amount cannot be negative"
-        
         temptrans = Transaction(self, self.wallet.address, 0, "coins", amount, 0)
         self.broadcast_transaction(self,temptrans)
         self.stake = amount
