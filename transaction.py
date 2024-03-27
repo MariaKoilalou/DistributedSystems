@@ -6,24 +6,26 @@ from Crypto.Signature import pkcs1_15
 from Crypto.Hash import SHA256
 
 class Transaction:
-    def __init__(self, sender_address, receiver_address, type_of_transaction, amount, message, nonce):
+    def __init__(self, sender_address, receiver_address, type_of_transaction, amount, message, nonce, outputs):
         self.sender_address = sender_address
         self.receiver_address = receiver_address
         self.type_of_transaction = type_of_transaction
         self.amount = amount
-        self.message = message
+        self.message = message  
         self.nonce = nonce
         self.transaction_id = self.calculate_transaction_id()
         self.signature = None  # To be set by the transaction signing method
+        self.outputs = output
 
-    def __init__(self, sender_address, receiver_address, type_of_transaction, amount, nonce):
-        self.sender_address = sender_address
-        self.receiver_address = receiver_address
-        self.type_of_transaction = type_of_transaction
-        self.amount = amount
-        self.nonce = nonce
-        self.transaction_id = self.calculate_transaction_id()
-        self.signature = None  # To be set by the transaction signing method 
+    # def __init__(self, sender_address, receiver_address, type_of_transaction, amount, nonce, outputs):
+    #     self.sender_address = sender_address
+    #     self.receiver_address = receiver_address
+    #     self.type_of_transaction = type_of_transaction
+    #     self.amount = amount
+    #     self.nonce = nonce
+    #     self.transaction_id = self.calculate_transaction_id()
+    #     self.signature = None  # To be set by the transaction signing method 
+    #     self.outputs = outputs
 
 
 
@@ -52,6 +54,7 @@ class Transaction:
             'message': self.message,
             'nonce': self.nonce,
             'transaction_id': self.transaction_id,
+            'outputs': self.outputs
             'signature': self.signature
         }
     
