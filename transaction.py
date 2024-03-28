@@ -6,7 +6,7 @@ from Crypto.Signature import pkcs1_15
 from Crypto.Hash import SHA256
 
 class Transaction:
-    def __init__(self, sender_address, receiver_address, type_of_transaction, amount, message, nonce):
+    def __init__(self, sender_address, receiver_address, type_of_transaction, amount, message=None, nonce=0):
         self.sender_address = sender_address
         self.receiver_address = receiver_address
         self.type_of_transaction = type_of_transaction

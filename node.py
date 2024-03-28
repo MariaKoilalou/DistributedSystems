@@ -6,7 +6,6 @@ from blockchain import Blockchain
 from transaction import Transaction
 from block import Block
 
-import argparse
 
 
 class Node:
@@ -21,7 +20,7 @@ class Node:
         self.wallet = wallet
         self.stakes = {}  # Dictionary to store stakes of other nodes
         self.balances = {}  # Dictionary to store balances of other nodes
-        self.nodes = {}  
+        self.nodes = set()
         
         
         if is_bootstrap:
@@ -37,9 +36,9 @@ class Node:
                 sender_address="0",
                 receiver_address=self.wallet.public_key,
                 type_of_transaction="genesis",
-                amount=1000 * total_nodes,
-                message="Genesis Block",
-                nonce=0
+                amount=1000 * total_nodes,  
+                nonce=0,
+                message="Genesis Block"
             )
             # Use the wallet's sign_transaction method
             signature = self.wallet.sign_transaction(genesis_transaction.to_dict())
@@ -314,19 +313,8 @@ class Node:
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description='Run a BlockChat node.')
-    parser.add_argument('--host', type=str, default='localhost', help='Host address for the node')
-    parser.add_argument('--port', type=int, required=True, help='Port number for the node')
-    parser.add_argument('--is_bootstrap', action='store_true', help='Flag to set this node as the bootstrap node')
 
-    args = parser.parse_args()
-    
-    blockchain = Blockchain()  # Assuming a Blockchain class is defined elsewhere
-    wallet = Wallet()  # Assuming a Wallet class is defined elsewhere
-
-    node = Node(args.host, args.port, blockchain, wallet, is_bootstrap=args.is_bootstrap)
-
-    if not args.is_bootstrap:
+    if not is_bootstrap:
         bootstrap_url = 'http://192.168.1.10:5000'  # Adjust the bootstrap URL as needed
         success = node.register_with_bootstrap(bootstrap_url, node.wallet.public_key)
         if success:
