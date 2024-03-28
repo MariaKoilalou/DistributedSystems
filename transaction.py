@@ -16,15 +16,6 @@ class Transaction:
         self.transaction_id = self.calculate_transaction_id()
         self.signature = None  # To be set by the transaction signing method
 
-    def __init__(self, sender_address, receiver_address, type_of_transaction, amount, nonce):
-        self.sender_address = sender_address
-        self.receiver_address = receiver_address
-        self.type_of_transaction = type_of_transaction
-        self.amount = amount
-        self.nonce = nonce
-        self.transaction_id = self.calculate_transaction_id()
-        self.signature = None  # To be set by the transaction signing method 
-
 
     def calculate_transaction_id(self):
         """
@@ -55,24 +46,12 @@ class Transaction:
         }
     
 
-    def verify_signature(self, public_key):
+    def verify_signature(self):
         """
         Verify the signature of the transaction using the provided public key.
         """
-        verifier = pkcs1_15.new(RSA.import_key(public_key))
+        verifier = pkcs1_15.new(RSA.import_key(self.sender_address))
         transaction_data = json.dumps(self.to_dict(), sort_keys=True).encode()
         transaction_hash = SHA256.new(transaction_data)
         return verifier.verify(transaction_hash, self.signature)
 
-# Example usage
-if __name__ == "__main__":
-    # Example creation of a transaction
-    transaction = Transaction(
-        sender_address="sender_public_key",
-        receiver_address="receiver_public_key",
-        type_of_transaction="coins",
-        amount=100,
-        message="Sending 100 coins",
-        nonce=1
-    )
-    print(transaction.to_dict())

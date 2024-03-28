@@ -82,17 +82,3 @@ class Wallet:
         """
         print(f"Current Balance: {self.balance} BTC")
 
-
-# Example usage
-if __name__ == "__main__":
-    my_wallet = Wallet()
-    transaction = {"from": my_wallet.address, "to": "RecipientPublicKey", "amount": 100}
-    signature = my_wallet.sign_transaction(transaction)
-
-    # Simulate sending the transaction and signature to a recipient
-    print("Transaction:", transaction)
-    print("Signature:", signature)
-
-    # The recipient (or a node in the network) would verify the signature like this
-    is_valid = my_wallet.verify_signature(transaction, signature, my_wallet.public_key)
-    print("Is the signature valid?", is_valid)

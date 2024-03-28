@@ -13,25 +13,27 @@ node_identifier = str(uuid4()).replace('-', '')
 registered_nodes = []
 
 @app.route('/register', methods=['POST'])
-def register_node():
+def register():
     values = request.get_json()
+    
+    # Extract the public key and node address from the incoming JSON
+    public_key = values.get('public_key')
+    node_address = values.get('node_address')
 
-    # Check for required fields in the incoming JSON
-    if 'public_key' not in values or 'node_address' not in values:
-        return "Missing values", 400
+    # Validate the incoming data
+    if not public_key or not node_address:
+        return jsonify({'message': 'Missing public key or node address'}), 400
 
-    # Add the node to the registered nodes list
-    registered_nodes.append({
-        'public_key': values['public_key'],
-        'node_address': values['node_address']
-    })
+    # Use the register_node method from the Node class to add the new node
+    if node.register_node(public_key, node_address):
+        response = {
+            'message': 'New node registered successfully',
+            'total_nodes': list(node.nodes.values()),  # Assuming node.nodes stores node addresses
+        }
+        return jsonify(response), 200
+    else:
+        return jsonify({'message': 'Node registration failed'}), 500
 
-    response = {
-        'message': 'New node has been added',
-        'total_nodes': len(registered_nodes),
-        'nodes': registered_nodes
-    }
-    return jsonify(response), 201
 
 
 @app.route('/transactions/new', methods=['POST'])
@@ -64,6 +66,18 @@ def consensus():
         response = {'message': 'Our chain is authoritative'}
     return jsonify(response), 200
 
+@app.route('/update_blockchain', methods=['POST'])
+def update_blockchain():
+    data = request.get_json()
+    
+    if not data or 'chain' not in data:
+        return jsonify({'error': 'Invalid data received'}), 400
+
+    # Directly replace the current blockchain with the one received
+    node.blockchain.chain = [node.blockchain.create_block_from_dict(block) for block in data['chain']]
+    
+    return jsonify({'message': 'Blockchain updated successfully'}), 200
+
 if __name__ == '__main__':
     import argparse
 
@@ -71,6 +85,7 @@ if __name__ == '__main__':
     parser.add_argument('--host', type=str, default='0.0.0.0', help='Host address for the node')
     parser.add_argument('--port', type=int, required=True, help='Port number for the node')
     parser.add_argument('--is_bootstrap', action='store_true', help='Flag to set this node as the bootstrap node')
+    parser.add_argument('--bootstrap_url', type=str, help='URL of the bootstrap node for registration')
 
     args = parser.parse_args()
 
@@ -78,8 +93,16 @@ if __name__ == '__main__':
     wallet = Wallet()  # Assuming a Wallet class is defined elsewhere
 
     node = Node(host=args.host, port=args.port, blockchain=blockchain, wallet=wallet, is_bootstrap=args.is_bootstrap)
-    if not args.is_bootstrap:
-        # Assuming the bootstrap node address is known and passed here
-        node.register_with_bootstrap('192.168.1.5:5000')
+
+    # Node registration logic
+    if not args.bootstrap and args.bootstrap_url:
+        success = node.register_with_bootstrap(args.bootstrap_url)
+        if success:
+            print("Registration with the bootstrap node was successful.")
+        else:
+            print("Failed to register with the bootstrap node.")
 
     app.run(host=args.host, port=args.port)
+
+
+
