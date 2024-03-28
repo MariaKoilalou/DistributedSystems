@@ -1,4 +1,5 @@
 from flask import Flask, request, jsonify
+from block import Block
 from node import Node  # Assuming your Node class is inside a folder named 'network'
 from blockchain import Blockchain
 from transaction import Transaction
@@ -10,7 +11,6 @@ app = Flask(__name__)
 node = None
 # Unique identifier for this node in the network
 node_identifier = str(uuid4()).replace('-', '')
-registered_nodes = []
 
 @app.route('/register', methods=['POST'])
 def register():
@@ -23,12 +23,18 @@ def register():
     # Validate the incoming data
     if not public_key or not node_address:
         return jsonify({'message': 'Missing public key or node address'}), 400
+    
+    success, node_id = node.register_node(public_key, node_address)
+    blockchain_data = [block.to_dict() for block in node.blockchain.chain]
 
     # Use the register_node method from the Node class to add the new node
-    if node.register_node(public_key, node_address):
+    if success:
         response = {
             'message': 'New node registered successfully',
-            'total_nodes': list(node.nodes.values()),  # Assuming node.nodes stores node addresses
+            'node_id': node_id,  # Include the node ID in the response
+            'node_address': node_address,
+            'total_nodes': [node_info['address'] for node_info in node.nodes.values()],
+            'blockchain': blockchain_data
         }
         return jsonify(response), 200
     else:
@@ -69,13 +75,12 @@ def consensus():
 @app.route('/update_blockchain', methods=['POST'])
 def update_blockchain():
     data = request.get_json()
-    
+
     if not data or 'chain' not in data:
         return jsonify({'error': 'Invalid data received'}), 400
 
-    # Directly replace the current blockchain with the one received
-    node.blockchain.chain = [node.blockchain.create_block_from_dict(block) for block in data['chain']]
-    
+    blockchain_data = [block.to_dict() for block in node.blockchain.chain]
+
     return jsonify({'message': 'Blockchain updated successfully'}), 200
 
 if __name__ == '__main__':

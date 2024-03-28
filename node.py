@@ -57,9 +57,14 @@ class Node:
         if response.status_code == 200:
             data = response.json()
             # Check if 'node_address' key exists in the response
-            if 'node_address' in data:
+            if 'node_address' in data and 'blockchain' in data:
                 self.nodes[data['node_id']] = data['node_address']
                 print('Registered with the bootstrap node')
+                # Initialize the local blockchain with the received state
+                received_chain = data['blockchain']
+                # Assuming you have a method to replace the current blockchain with a new one
+                self.update_blockchain(received_chain)
+                print('Local blockchain initialized with the received state from the bootstrap node')
                 return True
             else:
                 # Handle the case where 'node_address' is not present
@@ -73,20 +78,19 @@ class Node:
         """Register a new node in the network, assign it a unique ID, and transfer 1000 BCC to it."""
         if not self.is_bootstrap:
             print("This node is not the bootstrap node.")
-            return False
+            return False, None
         
-        node_id = self.total_nodes
+        node_id = len(self.nodes) + 1
         self.nodes[public_key] = {"id": node_id, "address": node_address}
-        self.total_nodes += 1  # Prepare ID for the next node
         print(f"Node {node_id} registered with public key {public_key}.")
 
         # Transfer 1000 BCC from the bootstrap node to the new node
         self.transfer_bcc_to_new_node(public_key, 1000)
 
         # # After registering the new node, broadcast the updated nodes and blockchain to all nodes
-        self.broadcast_updates(node_address)
+        self.broadcast_blockchain(node_address)
 
-        return True
+        return True, node_id
 
 
     def transfer_bcc_to_new_node(self, recipient_public_key, amount):
@@ -259,20 +263,22 @@ class Node:
         longest_chain = None
         current_len = len(self.blockchain.chain)
 
-        for node_url in self.nodes.values():
+        for _, node_info in self.nodes.items():
+            node_url = node_info['address']
             try:
                 response = requests.get(f'{node_url}/blockchain')
                 if response.status_code == 200:
                     length = response.json()['length']
                     chain = response.json()['chain']
-                    # Ensure the chain is in the correct format, e.g., a list of Block instances or dicts
+                    # Convert the received chain data into Block instances
                     formatted_chain = [self.format_block(block_data) for block_data in chain]
-                    
+
+                    # Check if the formatted chain is longer and valid
                     if length > current_len and self.blockchain.validate_chain(formatted_chain):
                         current_len = length
                         longest_chain = formatted_chain
             except Exception as e:
-                print(f"An error occurred while fetching the blockchain from {node_url}: {e}")
+                print(f"Error fetching blockchain from {node_url}: {e}")
 
         if longest_chain:
             self.blockchain.chain = longest_chain
@@ -346,6 +352,4 @@ class Node:
                 except requests.exceptions.RequestException as e:
                     print(f"Error broadcasting blockchain to {node_address}: {e}")
                 
-    def format_block(self, block_data):
-        return Block(**block_data)
     
