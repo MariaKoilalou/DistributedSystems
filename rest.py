@@ -7,29 +7,14 @@ from wallet import Wallet
 from uuid import uuid4
 
 app = Flask(__name__)
-<<<<<<< HEAD
-node = Node()
-blockchain = Blockchain()
-=======
 
 node = None
 # Unique identifier for this node in the network
 node_identifier = str(uuid4()).replace('-', '')
->>>>>>> ca443e3213549ca90414c44586d5dd7a87eb1178
 
 @app.route('/register', methods=['POST'])
 def register():
     values = request.get_json()
-<<<<<<< HEAD
-    if 'public_key' not in values or 'node_address' not in values:
-        return "Missing values", 400
-    node_id = node.register(values['public_key'], values['node_address'])
-    response = {
-        'message': 'New node has been added',
-        'node_id': node_id
-    }
-    return jsonify(response), 201
-=======
     
     # Extract the public key and node address from the incoming JSON
     public_key = values.get('public_key')
@@ -55,7 +40,6 @@ def register():
     else:
         return jsonify({'message': 'Node registration failed'}), 500
 
->>>>>>> ca443e3213549ca90414c44586d5dd7a87eb1178
 
 @app.route('/transactions/new', methods=['POST'])
 def new_transaction():
