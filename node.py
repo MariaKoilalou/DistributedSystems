@@ -6,6 +6,8 @@ from DistributedSystems.blockchain import Blockchain
 from transaction import Transaction
 from block import Block
 
+
+
 class Node:
     def __init__(self, host, port, blockchain, wallet, stake=0, is_bootstrap=False, n=None, total_nodes=1):
         self.host = host
@@ -17,7 +19,7 @@ class Node:
         self.wallet = Wallet()
         self.stakes = {}  # Dictionary to store stakes of other nodes
         self.balances = {}  # Dictionary to store balances of other nodes
-        self.nodes = {}  
+        self.nodes = {}
         
         
         if is_bootstrap:
@@ -26,87 +28,115 @@ class Node:
             self.initialize_genesis_block()
 
 
-    def initialize_genesis_block(self, total_nodes):
-        # Create the initial transaction for the genesis block
-        genesis_transaction = Transaction(
-            sender_address="0",  # Using 0 as a placeholder for the genesis transaction
-            receiver_address=self.wallet.public_key,  # Assuming the wallet has a public_key attribute
-            type_of_transaction="genesis",
-            amount=1000 * total_nodes,
-            message="Genesis Block Transaction",
-            nonce=0  # Nonce can be 0 or any value for the genesis transaction
-        )
-        
-        # Manually set the signature of the genesis transaction to None or any placeholder value
-        genesis_transaction.sign_transaction("genesis_signature")
-
-        # Create the genesis block
-        genesis_block = Block(
-            index=0,
-            transactions=[genesis_transaction.to_dict()],  # The block expects a list of transactions
-            validator=self.wallet.public_key,  # The bootstrap node acts as the validator for the genesis block
-            previous_hash="1"  # As per your requirement
-        )
-        
-        # Add the genesis block to the blockchain
-        self.blockchain.add_block(genesis_block)
+    def initialize_genesis_block(self):
+        total_nodes = self.total_nodes
+        if len(self.blockchain.chain) == 0:
+            genesis_transaction = Transaction(
+                sender_address="0",
+                receiver_address=self.wallet.public_key,
+                type_of_transaction="genesis",
+                amount=1000 * total_nodes,
+                message="Genesis Block",
+                nonce=0
+            )
+            # Use the wallet's sign_transaction method
+            signature = self.wallet.sign_transaction(genesis_transaction.to_dict())
+            genesis_transaction.signature = signature  # Directly set the signature attribute
+            genesis_block = Block(
+                index=0,
+                transactions=[genesis_transaction.to_dict()],
+                validator=self.wallet.public_key,
+                previous_hash="1"
+            )
+            self.blockchain.add_block(genesis_block)
 
 
     def register_with_bootstrap(self, bootstrap_url, public_key):
         response = requests.post(bootstrap_url + '/register', json={'public_key': public_key, 'node_address': self.api_url})
         if response.status_code == 200:
             data = response.json()
-            self.nodes[data['node_id']] = data['node_address']
-            print('Registered with the bootstrap node')
-            return True
+            # Check if 'node_address' key exists in the response
+            if 'node_address' in data and 'blockchain' in data:
+                self.nodes[data['node_id']] = data['node_address']
+                print('Registered with the bootstrap node')
+                # Initialize the local blockchain with the received state
+                received_chain = data['blockchain']
+                # Assuming you have a method to replace the current blockchain with a new one
+                self.update_blockchain(received_chain)
+                print('Local blockchain initialized with the received state from the bootstrap node')
+                return True
+            else:
+                # Handle the case where 'node_address' is not present
+                print('Error: node_address not found in the response.')
+                return False
         return False
     
+
     def register_node(self, public_key, node_address):
         """Register a new node in the network, assign it a unique ID, and transfer 1000 BCC to it."""
         if not self.is_bootstrap:
             print("This node is not the bootstrap node.")
-            return False
+            return False, None
         
-        node_id = self.node_id_counter
+        node_id = self.total_nodes
         self.nodes[public_key] = {"id": node_id, "address": node_address}
-        self.node_id_counter += 1  # Prepare ID for the next node
+        self.total_nodes += 1  # Prepare ID for the next node
         print(f"Node {node_id} registered with public key {public_key}.")
 
         # Transfer 1000 BCC from the bootstrap node to the new node
         self.transfer_bcc_to_new_node(public_key, 1000)
 
-        # After registering the new node, broadcast the updated nodes and blockchain to all nodes
-        self.broadcast_updates()
+        # # After registering the new node, broadcast the updated nodes and blockchain to all nodes
+        # self.broadcast_updates()
 
-        return True
+        return True, node_id
 
 
     # Niko des ti thelei gia to proof of stake edw 
     def transfer_bcc_to_new_node(self, recipient_public_key, amount):
-        """Create and execute a transaction to transfer BCC from the bootstrap node to a new node."""
-        # Assuming the bootstrap node's wallet has a method to create a signed transaction
-        transaction = self.wallet.create_signed_transaction(
-            recipient_public_key, 
-            amount, 
-            message="Welcome to the network!"
+        """
+        Create and execute a transaction to transfer BCC from this node to a new node,
+        then mint a new block containing this transaction.
+        """
+        # Step 1: Create a signed transaction using the wallet
+        signed_transaction = self.wallet.create_signed_transaction(
+            recipient_address=recipient_public_key,
+            amount=amount,
+            message="Welcome to the network!",
+            nonce=self.get_next_nonce()  # Assuming a method to manage nonce
         )
-        
-        # Add the transaction to the blockchain
-        self.blockchain.add_transaction(transaction)
 
-        # Assuming a method to mine transactions and add them as a new block
-        self.mine_transactions() 
+        # Assuming the signed_transaction is a dictionary with all needed fields
+        # and Transaction class can initialize from such a dictionary
+        transaction = Transaction(**signed_transaction)
+
+        # Step 2: Add the transaction to the transaction pool
+        self.blockchain.add_transaction_to_pool(transaction)
+
+        # Step 3: Mint a new block with transactions from the pool
+        # Assuming 'mint_block' will handle transaction validation
+        self.blockchain.mint_block(self.wallet.public_key)  # Validator is the current node's public key
 
         print(f"Transferred {amount} BCC to new node with public key {recipient_public_key}.")
 
-    # Nomizw den xreiazetai giati ama mpei node mono o bootstrap mporei na ton valei 
-    # def add_node(self, public_key, node_address, balance_amount=0, stake_amount=0):
-    #     """
-    #     Add a new node to the network.
-    #     """
-    #     self.nodes[public_key] = node_address
-    #     self.update_balance(public_key, balance_amount)
-    #     self.update_staking(public_key, stake_amount)
+
+    def get_next_nonce(self):
+        """
+        Retrieve the next nonce for transactions from this node by inspecting the transaction history.
+        The nonce is incremented for each new transaction to ensure uniqueness.
+        """
+        max_nonce = 0  # Start with 0, assuming no transactions yet
+
+        # Iterate through the blockchain to find transactions with this node's address as the sender
+        for block in self.blockchain.chain:
+            for transaction in block.transactions:
+                # Assuming 'transactions' in a block is a list of transaction dictionaries
+                # And each transaction dictionary has 'sender_address' and 'nonce' keys
+                if transaction['sender_address'] == self.wallet.address:
+                    max_nonce = max(max_nonce, transaction['nonce'])
+
+        # The next nonce should be one more than the max found in the transaction history
+        return max_nonce + 1
 
 
     def stake(self, amount):
@@ -164,7 +194,7 @@ class Node:
         """
         Validate the received blockchain by validating each block in it.
         """
-        for block in blockchain.chain[1:]:  # Exclude the genesis block
+        for block in self.blockchain.chain[1:]:  # Exclude the genesis block
             is_valid, message = self.validate_block(block)
             if not is_valid:
                 return False, f"Blockchain validation failed: {message}"
@@ -229,31 +259,96 @@ class Node:
         longest_chain = None
         current_len = len(self.blockchain.chain)
 
-        for node_url in self.nodes.values():
-            response = requests.get(node_url + '/blockchain')
-            if response.status_code == 200:
-                length = response.json()['length']
-                chain = response.json()['chain']
-                if length > current_len and self.blockchain.validate_chain(chain):
-                    current_len = length
-                    longest_chain = chain
+        for _, node_info in self.nodes.items():
+            node_url = node_info['address']
+            try:
+                response = requests.get(f'{node_url}/blockchain')
+                if response.status_code == 200:
+                    length = response.json()['length']
+                    chain = response.json()['chain']
+                    # Convert the received chain data into Block instances
+                    formatted_chain = [self.format_block(block_data) for block_data in chain]
+
+                    # Check if the formatted chain is longer and valid
+                    if length > current_len and self.blockchain.validate_chain(formatted_chain):
+                        current_len = length
+                        longest_chain = formatted_chain
+            except Exception as e:
+                print(f"Error fetching blockchain from {node_url}: {e}")
 
         if longest_chain:
             self.blockchain.chain = longest_chain
             return True
         return False
 
+    def view(self):
+        """
+        View last transactions: print the transactions contained in the last validated block
+        of the BlockChat blockchain.
+        """
+        last_block = self.blockchain.get_last_block()
+        if last_block:
+            transactions = last_block.transactions
+            print("Last transactions:")
+            for transaction in transactions:
+                print(transaction)
+        else:
+            print("Blockchain is empty or not synchronized.")
+
+    def sendTransCli(self, recipient_address, amount):
+        """
+        Send a transaction to the recipient address with the specified amount.
+        """
+        # Validate recipient address and amount (you may need additional validation logic here)
+        if not recipient_address:
+            print("Recipient address is required.")
+            return
+
+        try:
+            amount = float(amount)
+        except ValueError:
+            print("Invalid amount. Please enter a numeric value.")
+            return
+
+        # Create a transaction object
+        transaction = Transaction(
+            sender_address=self.wallet.public_key,
+            receiver_address=recipient_address,
+            amount=float(amount),
+            type_of_transaction="regular",  # Specify the transaction type here
+            message="Transaction message",
+            nonce=self.get_next_nonce()  # Assuming a method to manage nonce
+        )
+
+        # Validate the transaction
+        is_valid, message = self.validate_transaction(transaction)
+        if not is_valid:
+            print(f"Transaction validation failed: {message}")
+            return
+
+        # Broadcast the transaction to the network
+        self.broadcast_transaction(transaction)
+        print("Transaction sent successfully.")
+
 
 if __name__ == '__main__':
-    # Example instantiation and usage
+    parser = argparse.ArgumentParser(description='Run a BlockChat node.')
+    parser.add_argument('--host', type=str, default='localhost', help='Host address for the node')
+    parser.add_argument('--port', type=int, required=True, help='Port number for the node')
+    parser.add_argument('--is_bootstrap', action='store_true', help='Flag to set this node as the bootstrap node')
+
+    args = parser.parse_args()
+    
     blockchain = Blockchain()  # Assuming a Blockchain class is defined elsewhere
     wallet = Wallet()  # Assuming a Wallet class is defined elsewhere
 
-    # Node and Bootstrap node details
-    node = Node('localhost', 5001, blockchain, wallet)
-    bootstrap_url = 'http://localhost:5000'  # URL of the bootstrap node
+    node = Node(args.host, args.port, blockchain, wallet, is_bootstrap=args.is_bootstrap)
 
-    # Register with the bootstrap node
-    node.register_with_bootstrap(bootstrap_url, wallet.public_key)
+    if not args.is_bootstrap:
+        bootstrap_url = 'http://192.168.1.10:5000'  # Adjust the bootstrap URL as needed
+        success = node.register_with_bootstrap(bootstrap_url, node.wallet.public_key)
+        if success:
+            print("Registration with the bootstrap node was successful.")
+        else:
+            print("Failed to register with the bootstrap node.")
 
-    # Other operations like creating transactions, updating blockchain, etc.
