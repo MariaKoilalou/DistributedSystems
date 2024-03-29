@@ -11,7 +11,7 @@ class Transaction:
         self.receiver_address = receiver_address
         self.type_of_transaction = type_of_transaction
         self.amount = amount
-        self.message = message  
+        self.message = message
         self.nonce = nonce
         self.transaction_id = self.calculate_transaction_id()
         self.signature = None  # To be set by the transaction signing method
@@ -42,7 +42,6 @@ class Transaction:
             'message': self.message,
             'nonce': self.nonce,
             'transaction_id': self.transaction_id,
-            'outputs': self.outputs
             'signature': self.signature
         }
     
@@ -55,4 +54,3 @@ class Transaction:
         transaction_data = json.dumps(self.to_dict(), sort_keys=True).encode()
         transaction_hash = SHA256.new(transaction_data)
         return verifier.verify(transaction_hash, self.signature)
-

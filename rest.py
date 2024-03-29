@@ -81,7 +81,10 @@ def update_blockchain():
 
     blockchain_data = [block.to_dict() for block in node.blockchain.chain]
 
-    return jsonify({'message': 'Blockchain updated successfully'}), 200
+    if node.update_blockchain(blockchain_data):
+        return jsonify({'message': 'Blockchain updated successfully'}), 200
+    else:
+        return jsonify({'error': 'Failed to update blockchain'}), 500
 
 if __name__ == '__main__':
     import argparse

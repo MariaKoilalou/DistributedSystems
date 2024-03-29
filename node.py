@@ -90,6 +90,8 @@ class Node:
         # # After registering the new node, broadcast the updated nodes and blockchain to all nodes
         self.broadcast_blockchain(node_address)
 
+        print(f"Node {node_id} registered with public key {public_key}.")
+
         return True, node_id
 
 
@@ -271,7 +273,7 @@ class Node:
                     length = response.json()['length']
                     chain = response.json()['chain']
                     # Convert the received chain data into Block instances
-                    formatted_chain = [self.format_block(block_data) for block_data in chain]
+                    formatted_chain = [Block(**block_data) for block_data in chain]
 
                     # Check if the formatted chain is longer and valid
                     if length > current_len and self.blockchain.validate_chain(formatted_chain):
@@ -281,7 +283,9 @@ class Node:
                 print(f"Error fetching blockchain from {node_url}: {e}")
 
         if longest_chain:
-            self.blockchain.chain = longest_chain
+            # Update the blockchain of all nodes with the longest valid chain found
+            for _, node_info in self.nodes.items():
+                node_info['blockchain'].chain = longest_chain
             return True
         return False
 
@@ -349,6 +353,8 @@ class Node:
                     response = requests.post(f"{node_address}/update_blockchain", json=blockchain_data)
                     if response.status_code != 200:
                         print(f"Failed to broadcast blockchain to {node_address}. Response code: {response.status_code}")
+                    else :
+                        print(f"Successfully broadcasted blockchain to {node_address}.")
                 except requests.exceptions.RequestException as e:
                     print(f"Error broadcasting blockchain to {node_address}: {e}")
                 
