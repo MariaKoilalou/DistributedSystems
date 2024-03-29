@@ -1,4 +1,6 @@
 import random
+
+from flask.json import jsonify
 from block import Block
 
 import time
@@ -44,7 +46,9 @@ class Blockchain:
                 raise Exception("The new block's previous hash must match the last block's hash")
 
         self.chain.append(block)
-        print(f"Block {block.index} added to the chain")
+        print("New block added, current blockchain state:", self.chain)
+        return jsonify({"message": "New block added"}), 200
+        #print(f"Block {block.index} added to the chain")
         
     def validate_chain(self):
         """
