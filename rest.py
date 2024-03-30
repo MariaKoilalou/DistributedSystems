@@ -1,7 +1,7 @@
 from flask import Flask, request, jsonify
 from block import Block
 from node import Node  # Assuming your Node class is inside a folder named 'network'
-from DistributedSystems.blockchain import Blockchain
+from blockchain import Blockchain
 from transaction import Transaction
 from wallet import Wallet
 from uuid import uuid4
@@ -39,6 +39,7 @@ def register():
         return jsonify(response), 200
     else:
         return jsonify({'message': 'Node registration failed'}), 500
+
 
 
 @app.route('/transactions/new', methods=['POST'])
@@ -110,6 +111,5 @@ if __name__ == '__main__':
             print("Failed to register with the bootstrap node.")
 
     app.run(host=args.host, port=args.port)
-
 
 

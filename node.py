@@ -2,7 +2,7 @@ import requests
 import json
 
 from wallet import Wallet
-from DistributedSystems.blockchain import Blockchain
+from blockchain import Blockchain
 from transaction import Transaction
 from block import Block
 
@@ -13,10 +13,11 @@ class Node:
         self.host = host
         self.port = port
         self.stake_amount = stake  
+        self.total_nodes = total_nodes
         self.is_bootstrap = is_bootstrap
         self.api_url = f'http://{host}:{port}/'
         self.blockchain = blockchain
-        self.wallet = Wallet()
+        self.wallet = wallet
         self.stakes = {}  # Dictionary to store stakes of other nodes
         self.balances = {}  # Dictionary to store balances of other nodes
         self.nodes = {}
@@ -35,9 +36,9 @@ class Node:
                 sender_address="0",
                 receiver_address=self.wallet.public_key,
                 type_of_transaction="genesis",
-                amount=1000 * total_nodes,
-                message="Genesis Block",
-                nonce=0
+                amount=1000 * total_nodes,  
+                nonce=0,
+                message="Genesis Block"
             )
             # Use the wallet's sign_transaction method
             signature = self.wallet.sign_transaction(genesis_transaction.to_dict())
@@ -70,6 +71,7 @@ class Node:
                 print('Error: node_address not found in the response.')
                 return False
         return False
+
     
 
     def register_node(self, public_key, node_address):
@@ -78,9 +80,8 @@ class Node:
             print("This node is not the bootstrap node.")
             return False, None
         
-        node_id = self.total_nodes
+        node_id = len(self.nodes) + 1
         self.nodes[public_key] = {"id": node_id, "address": node_address}
-        self.total_nodes += 1  # Prepare ID for the next node
         print(f"Node {node_id} registered with public key {public_key}.")
 
         # Transfer 1000 BCC from the bootstrap node to the new node
@@ -94,7 +95,6 @@ class Node:
         return True, node_id
 
 
-    # Niko des ti thelei gia to proof of stake edw 
     def transfer_bcc_to_new_node(self, recipient_public_key, amount):
         """
         Create and execute a transaction to transfer BCC from this node to a new node,
@@ -108,19 +108,23 @@ class Node:
             nonce=self.get_next_nonce()  # Assuming a method to manage nonce
         )
 
-        # Assuming the signed_transaction is a dictionary with all needed fields
-        # and Transaction class can initialize from such a dictionary
-        transaction = Transaction(**signed_transaction)
+        # Extract necessary fields from signed_transaction
+        sender_address = self.wallet.public_key  # Sender address is the public key of the wallet
+        receiver_address = recipient_public_key  # Assign recipient address directly
+        amount = signed_transaction['amount']  # Extract amount from signed transaction
+        message = signed_transaction['message']  # Extract message from signed transaction
+        nonce = signed_transaction['nonce']  # Extract nonce from signed transaction
 
-        # Step 2: Add the transaction to the transaction pool
+        # Create a Transaction object with extracted fields
+        transaction = Transaction(sender_address, receiver_address, "regular", amount, message, nonce)
+
+        transaction = transaction.to_dict()
+
         self.blockchain.add_transaction_to_pool(transaction)
 
-        # Step 3: Mint a new block with transactions from the pool
-        # Assuming 'mint_block' will handle transaction validation
         self.blockchain.mint_block(self.wallet.public_key)  # Validator is the current node's public key
 
         print(f"Transferred {amount} BCC to new node with public key {recipient_public_key}.")
-
 
     def get_next_nonce(self):
         """
@@ -285,6 +289,7 @@ class Node:
             return True
         return False
 
+
     def view(self):
         """
         View last transactions: print the transactions contained in the last validated block
@@ -348,6 +353,8 @@ class Node:
                     response = requests.post(f"{node_address}/update_blockchain", json=blockchain_data)
                     if response.status_code != 200:
                         print(f"Failed to broadcast blockchain to {node_address}. Response code: {response.status_code}")
+                    else :
+                        print(f"Successfully broadcasted blockchain to {node_address}.")
                 except requests.exceptions.RequestException as e:
                     print(f"Error broadcasting blockchain to {node_address}: {e}")
                 

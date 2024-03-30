@@ -36,4 +36,3 @@ class Block:
 
     def __repr__(self):
         return f"Block(Index: {self.index}, Hash: {self.current_hash}, Prev Hash: {self.previous_hash}, Transactions: {len(self.transactions)})"
-
