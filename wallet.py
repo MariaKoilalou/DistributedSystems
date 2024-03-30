@@ -71,4 +71,3 @@ class Wallet:
         Print the current balance of the wallet to the console.
         """
         print(f"Current Balance: {self.balance} BTC")
-

@@ -87,7 +87,9 @@ class Node:
         self.transfer_bcc_to_new_node(public_key, 1000)
 
         # # After registering the new node, broadcast the updated nodes and blockchain to all nodes
-        # self.broadcast_updates()
+        self.broadcast_blockchain(node_address)
+
+        print(f"Node {node_id} registered with public key {public_key}.")
 
         return True, node_id
 
@@ -267,7 +269,7 @@ class Node:
                     length = response.json()['length']
                     chain = response.json()['chain']
                     # Convert the received chain data into Block instances
-                    formatted_chain = [self.format_block(block_data) for block_data in chain]
+                    formatted_chain = [Block(**block_data) for block_data in chain]
 
                     # Check if the formatted chain is longer and valid
                     if length > current_len and self.blockchain.validate_chain(formatted_chain):
@@ -277,7 +279,9 @@ class Node:
                 print(f"Error fetching blockchain from {node_url}: {e}")
 
         if longest_chain:
-            self.blockchain.chain = longest_chain
+            # Update the blockchain of all nodes with the longest valid chain found
+            for _, node_info in self.nodes.items():
+                node_info['blockchain'].chain = longest_chain
             return True
         return False
 
@@ -330,25 +334,21 @@ class Node:
         self.broadcast_transaction(transaction)
         print("Transaction sent successfully.")
 
+    def broadcast_blockchain(self):
+        if self.is_bootstrap:
+            # Broadcast the current blockchain to all registered nodes
+            blockchain_data = {
+                'chain': [block.to_dict() for block in self.blockchain.chain],
+                'length': len(self.blockchain.chain),
+            }
 
-if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description='Run a BlockChat node.')
-    parser.add_argument('--host', type=str, default='localhost', help='Host address for the node')
-    parser.add_argument('--port', type=int, required=True, help='Port number for the node')
-    parser.add_argument('--is_bootstrap', action='store_true', help='Flag to set this node as the bootstrap node')
-
-    args = parser.parse_args()
+            for _, node_info in self.nodes.items():
+                node_address = node_info['address']
+                try:
+                    response = requests.post(f"{node_address}/update_blockchain", json=blockchain_data)
+                    if response.status_code != 200:
+                        print(f"Failed to broadcast blockchain to {node_address}. Response code: {response.status_code}")
+                except requests.exceptions.RequestException as e:
+                    print(f"Error broadcasting blockchain to {node_address}: {e}")
+                
     
-    blockchain = Blockchain()  # Assuming a Blockchain class is defined elsewhere
-    wallet = Wallet()  # Assuming a Wallet class is defined elsewhere
-
-    node = Node(args.host, args.port, blockchain, wallet, is_bootstrap=args.is_bootstrap)
-
-    if not args.is_bootstrap:
-        bootstrap_url = 'http://192.168.1.10:5000'  # Adjust the bootstrap URL as needed
-        success = node.register_with_bootstrap(bootstrap_url, node.wallet.public_key)
-        if success:
-            print("Registration with the bootstrap node was successful.")
-        else:
-            print("Failed to register with the bootstrap node.")
-

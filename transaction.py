@@ -72,4 +72,3 @@ class Transaction:
         transaction_data = json.dumps(self.to_dict(), sort_keys=True).encode()
         transaction_hash = SHA256.new(transaction_data)
         return verifier.verify(transaction_hash, self.signature)
-
