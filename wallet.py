@@ -14,21 +14,33 @@ class Wallet:
         self.address = self.public_key  # In a real application, you might use a more user-friendly address format
         self.balance = 0  # Initially, the wallet's balance is 0
 
+    def calculate_balance(self, blockchain):
+        balance = 0
+        for block in blockchain.chain:
+            for transaction in block.transactions:
+                # Check if the wallet is the recipient
+                if transaction['receiver_address'] == self.public_key:
+                    balance += transaction['amount']
+                # Check if the wallet is the sender
+                if transaction['sender_address'] == self.public_key:
+                    balance -= transaction['amount']
+        return balance
 
     def sign_transaction(self, transaction):
         """
         Sign a transaction with the wallet's private key.
         """
-        if self.address == "0" and private_key == "genesis_signature":
-            self.signature = "genesis_signature"
-        else:
-            transaction_string = json.dumps(transaction, sort_keys=True)
-            transaction_bytes = transaction_string.encode('utf-8')
-            transaction_hash = SHA256.new(transaction_bytes)
-            private_key = RSA.import_key(self.private_key)
-            signer = pkcs1_15.new(private_key)
-            signature = signer.sign(transaction_hash)
-            return base64.b64encode(signature).decode('utf-8')
+        if self.address == "0" and self.private_key == "genesis_signature":
+            # Directly return the 'genesis_signature' without actual signing
+            return "genesis_signature"
+
+        transaction_string = json.dumps(transaction, sort_keys=True)
+        transaction_bytes = transaction_string.encode('utf-8')
+        transaction_hash = SHA256.new(transaction_bytes)
+        private_key = RSA.import_key(self.private_key)
+        signer = pkcs1_15.new(private_key)
+        signature = signer.sign(transaction_hash)
+        
         # Return the signature in Base64 to ensure it's easily transmittable
         return base64.b64encode(signature).decode('utf-8')
 

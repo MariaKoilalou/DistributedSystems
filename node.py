@@ -9,7 +9,7 @@ from block import Block
 
 
 class Node:
-    def __init__(self, host, port, blockchain, wallet, stake=0, is_bootstrap=False, n=None, total_nodes=1):
+    def __init__(self, host, port, blockchain, wallet, stake=0, is_bootstrap=False, n=None, total_nodes=5):
         self.host = host
         self.port = port
         self.stake_amount = stake  
@@ -18,14 +18,14 @@ class Node:
         self.api_url = f'http://{host}:{port}/'
         self.blockchain = blockchain
         self.wallet = wallet
+        self.node_id = 0 if is_bootstrap else None
         self.stakes = {}  # Dictionary to store stakes of other nodes
         self.balances = {}  # Dictionary to store balances of other nodes
         self.nodes = {}
         
         
         if is_bootstrap:
-            self.id_counter = 1  # Αρχικό ID για νέους κόμβους
-            self.total_nodes = total_nodes
+            self.next_node_id = 1
             self.initialize_genesis_block()
 
 
@@ -57,8 +57,7 @@ class Node:
         if response.status_code == 200:
             data = response.json()
             # Check if 'node_address' key exists in the response
-            if 'node_address' in data and 'blockchain' in data:
-                self.nodes[data['node_id']] = data['node_address']
+            if 'node_address' in data:
                 print('Registered with the bootstrap node')
                 # Initialize the local blockchain with the received state
                 received_chain = data['blockchain']
@@ -80,9 +79,10 @@ class Node:
             print("This node is not the bootstrap node.")
             return False, None
         
-        node_id = len(self.nodes) + 1
-        self.nodes[public_key] = {"id": node_id, "address": node_address}
-        print(f"Node {node_id} registered with public key {public_key}.")
+        assigned_node_id = self.next_node_id
+        self.nodes[assigned_node_id] = {'public_key': public_key, 'address': node_address}
+        self.next_node_id += 1  # Prepare ID for the next node
+        print(f"Node {assigned_node_id} registered with public key {public_key}.")
 
         # Transfer 1000 BCC from the bootstrap node to the new node
         self.transfer_bcc_to_new_node(public_key, 1000)
@@ -90,9 +90,9 @@ class Node:
         # # After registering the new node, broadcast the updated nodes and blockchain to all nodes
         self.broadcast_blockchain()
 
-        print(f"Node {node_id} registered with public key {public_key}.")
+        print(f"Node {assigned_node_id} registered with public key {public_key}.")
 
-        return True, node_id
+        return True, assigned_node_id
 
 
     def transfer_bcc_to_new_node(self, recipient_public_key, amount):
@@ -120,12 +120,43 @@ class Node:
 
         transaction = transaction.to_dict()
 
-        self.blockchain.add_transaction_to_pool(transaction)
+        # Add the signed transaction to the transaction pool
+        self.blockchain.add_transaction_to_pool(transaction.to_dict())
 
-        self.blockchain.mint_block(self.wallet.public_key)  # Validator is the current node's public key
+        # Mint a new block containing this transaction (PoS-specific logic may apply here)
+        self.blockchain.mint_block(self.wallet.public_key)  # Use bootstrap node's public key as the validator
 
         print(f"Transferred {amount} BCC to new node with public key {recipient_public_key}.")
 
+    def process_bootstrap_transaction(self, transaction):
+
+        sender_address = transaction['sender_address']
+        receiver_address = transaction['receiver_address']
+        amount = transaction['amount']
+
+        # Find node IDs by public keys
+        sender_id = self.get_node_id_by_public_key(sender_address)
+        receiver_id = self.get_node_id_by_public_key(receiver_address)
+
+        if self.balances[sender_id] < amount:
+            return False, "Insufficient balance"
+        
+        # Update sender's balance (considering staked amount and fees)
+        self.update_balance(sender_id, self.balances[sender_id] - amount)
+
+        self.update_balance(receiver_id, self.balances[receiver_id] + amount)
+        self.balances[receiver_id] += amount
+        self.balances[sender_id] -= amount
+
+        return True, "Transaction processed successfully"
+
+    def get_node_id_by_public_key(self, public_key):
+        # Iterate over the dictionary items
+        for node_id, node_info in self.nodes.items():
+            if node_info["public_key"] == public_key:
+                return node_id  # Return the key (node ID)
+        return None
+    
     def get_next_nonce(self):
         """
         Retrieve the next nonce for transactions from this node by inspecting the transaction history.
@@ -162,7 +193,7 @@ class Node:
         Validate a block by checking the validator and previous hash.
         """
         # Check if the validator matches the stakeholder
-        if block.validator != self.stake:
+        if block.validator != self.blockchain.validatorHistory[block.index]:
             return False, "Invalid validator"
 
         # Retrieve the previous block from the blockchain
@@ -247,17 +278,19 @@ class Node:
         message_fee = len(transaction.message)  # Assuming 1 BCC per character
 
         # Total fee charged for the transaction (including message fee)
-        total_fee = transaction.fee + message_fee
+        total_fee = 0.03*amount + message_fee
 
-        # Validate sender's balance (considering staked amount and fees)
-        if self.wallet.balance - self.stake - total_fee < amount:
+        if self.balances[sender_address] < amount + total_fee:
             return False, "Insufficient balance"
 
         # Update sender's balance (considering staked amount and fees)
-        self.update_balance(sender_address, self.balances.get(sender_address, 0) - (amount + total_fee))
+        self.update_balance(sender_address, self.balances[sender_address] - amount - total_fee)
 
-        # Update receiver's balance
-        self.update_balance(receiver_address, self.balances.get(receiver_address, 0) + amount)
+        # check if its a stake transaction or not
+        if (receiver_address == 0):
+            self.update_staking(self, sender_address, amount)
+
+        self.update_balance(receiver_address, self.balances[receiver_address] + amount)
 
         return True, "Transaction processed successfully"
 
@@ -346,24 +379,23 @@ class Node:
         self.broadcast_transaction(transaction)
         print("Transaction sent successfully.")
 
-    def broadcast_blockchain(self):
-        if self.is_bootstrap:
-            # Broadcast the current blockchain to all registered nodes
-            blockchain_data = {
-                'chain': [block.to_dict() for block in self.blockchain.chain],
-                'length': len(self.blockchain.chain),
-            }
-
-            for node_id, node_info in self.nodes.items():
-                print(f"Node ID: {node_id}, Node Info: {node_info}")
-                node_address = node_info['address']
+    def broadcast_blockchain(node_addresses, blockchain_data, max_retries=3, delay=2):
+        for node_address in node_addresses:
+            success = False
+            for attempt in range(max_retries):
                 try:
                     response = requests.post(f"{node_address}/update_blockchain", json=blockchain_data)
-                    if response.status_code != 200:
-                        print(f"Failed to broadcast blockchain to {node_address}. Response code: {response.status_code}")
-                    else :
+                    if response.status_code == 200:
                         print(f"Successfully broadcasted blockchain to {node_address}.")
+                        success = True
+                        break
+                    else:
+                        print(f"Failed to broadcast blockchain to {node_address}. Status Code: {response.status_code}")
                 except requests.exceptions.RequestException as e:
                     print(f"Error broadcasting blockchain to {node_address}: {e}")
-                
+                time.sleep(delay)  # Wait for a bit before retrying
+            if not success:
+                print(f"Failed to broadcast blockchain to {node_address} after {max_retries} attempts.")
     
+    def check_balance(self):
+        return self.wallet.calculate_balance(self.blockchain)

@@ -1,3 +1,4 @@
+from threading import Thread
 from flask import Flask, request, jsonify
 from block import Block
 from node import Node  # Assuming your Node class is inside a folder named 'network'
@@ -11,6 +12,7 @@ app = Flask(__name__)
 node = None
 # Unique identifier for this node in the network
 node_identifier = str(uuid4()).replace('-', '')
+
 
 @app.route('/register', methods=['POST'])
 def register():
@@ -39,7 +41,6 @@ def register():
         return jsonify(response), 200
     else:
         return jsonify({'message': 'Node registration failed'}), 500
-
 
 
 @app.route('/transactions/new', methods=['POST'])
@@ -101,7 +102,7 @@ if __name__ == '__main__':
     wallet = Wallet()  # Assuming a Wallet class is defined elsewhere
 
     node = Node(host=args.host, port=args.port, blockchain=blockchain, wallet=wallet, is_bootstrap=args.is_bootstrap)
-
+    
     # Node registration logic
     if not args.is_bootstrap and args.bootstrap_url:
         success = node.register_with_bootstrap(args.bootstrap_url, node.wallet.publick_key)
@@ -109,6 +110,9 @@ if __name__ == '__main__':
             print("Registration with the bootstrap node was successful.")
         else:
             print("Failed to register with the bootstrap node.")
+
+    bootstrap_balance = node.check_balance()
+    print(f"Bootstrap node balance: {bootstrap_balance} BCC")
 
     app.run(host=args.host, port=args.port)
 
