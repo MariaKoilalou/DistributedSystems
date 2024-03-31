@@ -88,7 +88,7 @@ class Node:
         self.transfer_bcc_to_new_node(public_key, 1000)
 
         # # After registering the new node, broadcast the updated nodes and blockchain to all nodes
-        self.broadcast_blockchain(node_address)
+        self.broadcast_blockchain()
 
         print(f"Node {node_id} registered with public key {public_key}.")
 
@@ -261,33 +261,40 @@ class Node:
 
         return True, "Transaction processed successfully"
 
-    def update_blockchain(self):
-        longest_chain = None
-        current_len = len(self.blockchain.chain)
+    def update_blockchain(self, incoming_chain):
+        try:
+            # Temporarily save the current blockchain
+            current_chain_backup = self.blockchain.chain
 
-        for _, node_info in self.nodes.items():
-            node_url = node_info['address']
-            try:
-                response = requests.get(f'{node_url}/blockchain')
-                if response.status_code == 200:
-                    length = response.json()['length']
-                    chain = response.json()['chain']
-                    # Convert the received chain data into Block instances
-                    formatted_chain = [Block(**block_data) for block_data in chain]
+            # Convert the incoming chain data into Block instances and set it as the current blockchain chain for validation
+            self.blockchain.chain = [Block(**block_data) for block_data in incoming_chain]
 
-                    # Check if the formatted chain is longer and valid
-                    if length > current_len and self.blockchain.validate_chain(formatted_chain):
-                        current_len = length
-                        longest_chain = formatted_chain
-            except Exception as e:
-                print(f"Error fetching blockchain from {node_url}: {e}")
+            # Validate the temporarily set incoming chain
+            if self.blockchain.validate_chain():
+                current_len = len(current_chain_backup)
+                incoming_len = len(self.blockchain.chain)
 
-        if longest_chain:
-            # Update the blockchain of all nodes with the longest valid chain found
-            for _, node_info in self.nodes.items():
-                node_info['blockchain'].chain = longest_chain
-            return True
-        return False
+                # Check if the incoming chain is longer than the current chain
+                if incoming_len > current_len:
+                    # The incoming chain is valid and longer, keep it as the new chain
+                    print(f"Blockchain updated with a longer chain of length {incoming_len}.")
+                    return True
+                else:
+                    # The incoming chain is valid but not longer, restore the original chain
+                    self.blockchain.chain = current_chain_backup
+                    print("Received chain is not longer than the current chain.")
+            else:
+                # The incoming chain is invalid, restore the original chain
+                self.blockchain.chain = current_chain_backup
+                print("Received chain is invalid.")
+
+            return False
+        except Exception as e:
+            print(f"An error occurred during blockchain update: {e}")
+            self.blockchain.chain = current_chain_backup  # Restore the original chain in case of error
+            return False
+
+    
 
 
     def view(self):
@@ -347,7 +354,8 @@ class Node:
                 'length': len(self.blockchain.chain),
             }
 
-            for _, node_info in self.nodes.items():
+            for node_id, node_info in self.nodes.items():
+                print(f"Node ID: {node_id}, Node Info: {node_info}")
                 node_address = node_info['address']
                 try:
                     response = requests.post(f"{node_address}/update_blockchain", json=blockchain_data)

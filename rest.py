@@ -79,7 +79,7 @@ def update_blockchain():
     if not data or 'chain' not in data:
         return jsonify({'error': 'Invalid data received'}), 400
 
-    blockchain_data = [block.to_dict() for block in node.blockchain.chain]
+    blockchain_data = data['chain']
 
     if node.update_blockchain(blockchain_data):
         return jsonify({'message': 'Blockchain updated successfully'}), 200
@@ -103,8 +103,8 @@ if __name__ == '__main__':
     node = Node(host=args.host, port=args.port, blockchain=blockchain, wallet=wallet, is_bootstrap=args.is_bootstrap)
 
     # Node registration logic
-    if not args.bootstrap and args.bootstrap_url:
-        success = node.register_with_bootstrap(args.bootstrap_url)
+    if not args.is_bootstrap and args.bootstrap_url:
+        success = node.register_with_bootstrap(args.bootstrap_url, node.wallet.publick_key)
         if success:
             print("Registration with the bootstrap node was successful.")
         else:

@@ -3,22 +3,31 @@ import hashlib
 import json
 
 class Block:
-    def __init__(self, index, transactions, validator, previous_hash, capacity=3, timestamp=None):
+    def __init__(self, index, transactions, validator, previous_hash, capacity=3, timestamp=None, current_hash=None):
         self.index = index
-        self.timestamp = timestamp if timestamp is not None else time.time()
+        self.timestamp = round(timestamp if timestamp is not None else time.time(), 4)
         self.transactions = transactions[:capacity]  # Limit transactions to capacity
         self.validator = validator
         self.previous_hash = previous_hash
-        self.current_hash = self.calculate_hash()
         self.capacity = capacity
+        self.current_hash = current_hash if current_hash is not None else self.calculate_hash()
 
+    def serialize_for_hash(self):
+        # Serialize block data in a consistent order
+        block_data = {
+            'index': self.index,
+            'timestamp': self.timestamp,
+            'transactions': sorted(self.transactions, key=lambda x: json.dumps(x)),
+            'validator': self.validator,
+            'previous_hash': self.previous_hash
+        }
+        return json.dumps(block_data, sort_keys=True)
+    
     def calculate_hash(self):
-        """
-        Calculate the hash of the block by hashing the concatenation of the block's main components.
-        """
-        block_string = f"{self.index}{self.timestamp}{json.dumps(self.transactions)}{self.validator}{self.previous_hash}"
+        # Use serialized block data for hash calculation
+        block_string = self.serialize_for_hash()
         return hashlib.sha256(block_string.encode()).hexdigest()
-
+    
     def to_dict(self):
         """
         Convert the block details into a dictionary for easier processing and transmission.

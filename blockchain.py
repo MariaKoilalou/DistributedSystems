@@ -10,7 +10,7 @@ class Blockchain:
     def __init__(self):
         self.chain = []
         self.transaction_pool = []
-        self.stakes = []
+        self.stakes = {}
     
     def add_transaction_to_pool(self, transaction):
         self.transaction_pool.append(transaction)
@@ -47,7 +47,7 @@ class Blockchain:
 
         self.chain.append(block)
         print("New block added, current blockchain state:", self.chain)
-        return jsonify({"message": "New block added"}), 200
+        return "New block added", 200
         #print(f"Block {block.index} added to the chain")
         
     def validate_chain(self):
@@ -62,12 +62,14 @@ class Blockchain:
                 print("Blockchain integrity compromised at Block", current_block.index)
                 return False
             
-            if current_block.calculate_hash() != current_block.current_hash:
+            recalculated_hash = hashlib.sha256(current_block.serialize_for_hash().encode()).hexdigest()
+            if recalculated_hash != current_block.current_hash:
                 print("Block hash calculation mismatch at Block", current_block.index)
                 return False
-        
+
         print("Blockchain is valid.")
         return True
+
 
     def PoS_Choose_Minter(self, block):
         """
@@ -97,8 +99,3 @@ class Blockchain:
         else:
             return None
     
-# Example usage
-if __name__ == "__main__":
-    blockchain = Blockchain()
-    blockchain.add_block(transactions=[{"from": "Alice", "to": "Bob", "amount": 50}], validator="Validator1")
-    blockchain.validate_chain()
