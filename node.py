@@ -162,7 +162,7 @@ class Node:
         Validate a block by checking the validator and previous hash.
         """
         # Check if the validator matches the stakeholder
-        if block.validator != self.stake:
+        if block.validator != self.blockchain.chain.validatorHistory[block.index]:
             return False, "Invalid validator"
 
         # Retrieve the previous block from the blockchain
@@ -180,13 +180,15 @@ class Node:
         """
         sender_address = transaction.sender_address #edw den prepei na einai sender_address
         amount = transaction.amount
+        message_fee = len(transaction.message)  # Assuming 1 BCC per character
+        total_fee = 0.03*amount + message_fee        
 
         # Verify the transaction signature
         if not transaction.verify_signature():
             return False, "Invalid signature"
 
         # Check if the sender has sufficient balance (considering staked amount)
-        if self.wallet.balance - self.stake < amount:
+        if self.wallet.balance < amount + total_fee:
             return False, "Insufficient balance"
 
         return True, "Transaction validated successfully"
@@ -229,10 +231,9 @@ class Node:
         """
         Update the staking amount for the node with the given public key.
         """
-        self.staking_info[public_key] += staked_amount
         # Deduct staked amount from available balance
-        self.wallet.deduct_balance(staked_amount)
-        self.stakes[public_key] = staked_amount
+        #self.balances[public_key] -= staked_amount     # for now its included in process_transaction, maybe uncomment later and bring it here
+        self.stakes[public_key] += staked_amount
 
 
     def process_transaction(self, transaction):
@@ -247,17 +248,19 @@ class Node:
         message_fee = len(transaction.message)  # Assuming 1 BCC per character
 
         # Total fee charged for the transaction (including message fee)
-        total_fee = transaction.fee + message_fee
+        total_fee = 0.03*amount + message_fee
 
-        # Validate sender's balance (considering staked amount and fees)
-        if self.wallet.balance - self.stake - total_fee < amount:
+        if self.balances[sender_address] < amount + total_fee:
             return False, "Insufficient balance"
 
         # Update sender's balance (considering staked amount and fees)
-        self.update_balance(sender_address, self.balances.get(sender_address, 0) - (amount + total_fee))
+        self.update_balance(sender_address, self.balances[sender_address] - amount - total_fee)
 
-        # Update receiver's balance
-        self.update_balance(receiver_address, self.balances.get(receiver_address, 0) + amount)
+        # check if its a stake transaction or not
+        if (receiver_address == 0):
+            self.update_staking(self, sender_address, amount)
+
+        self.update_balance(receiver_address, self.balances[receiver_address] + amount)
 
         return True, "Transaction processed successfully"
 
