@@ -1,4 +1,4 @@
-from threading import Thread
+from threading import Thread, Event
 from flask import Flask, request, jsonify
 from block import Block
 from node import Node  # Assuming your Node class is inside a folder named 'network'
@@ -6,8 +6,11 @@ from blockchain import Blockchain
 from transaction import Transaction
 from wallet import Wallet
 from uuid import uuid4
+import cli 
 
 app = Flask(__name__)
+
+shutdown_event = Event()
 
 node = None
 # Unique identifier for this node in the network
@@ -86,6 +89,7 @@ def update_blockchain():
         return jsonify({'message': 'Blockchain updated successfully'}), 200
     else:
         return jsonify({'error': 'Failed to update blockchain'}), 500
+ 
 
 if __name__ == '__main__':
     import argparse
@@ -114,7 +118,17 @@ if __name__ == '__main__':
     bootstrap_balance = node.check_balance()
     print(f"Bootstrap node balance: {bootstrap_balance} BCC")
 
-    app.run(host=args.host, port=args.port)
+    # CLI Thread
+    cli_thread = Thread(target=cli.run_cli, args=(node, wallet, shutdown_event))
+    cli_thread.start()
+
+    try:
+        app.run(host=args.host, port=args.port)
+    finally:
+        # This is executed when app.run() exits
+        shutdown_event.set()  # Signal CLI thread to shut down
+        cli_thread.join()  # Wait for the CLI thread to exit
+        print("Flask app and CLI have shut down.")
 
 
 
