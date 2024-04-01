@@ -83,8 +83,6 @@ def update_blockchain():
     if not data:
         return jsonify({'error': 'Invalid data received'}), 400
 
-    # blockchain_data = data['chain']
-
     if node.update_blockchain(data):
         return jsonify({'message': 'Blockchain updated successfully'}), 200
     else:
@@ -92,14 +90,12 @@ def update_blockchain():
  
 @app.route('/receive_data', methods=['POST'])
 def receive_nodes():
-    if request.is_json:
-        received_data = request.get_json()
 
-        node.update_nodes(received_data)
+    received_data = request.get_json()
+    node.update_nodes(received_data)
+    return jsonify({'message': 'Node updated successfully'}), 200
 
-        return jsonify({'message': 'Nodes updated successfully'}), 200
-    else:
-        return jsonify({'error': 'Request must be JSON'}), 400
+
 
 
 if __name__ == '__main__':

@@ -1,4 +1,5 @@
 import time
+import json
 import requests
 from wallet import Wallet
 from blockchain import Blockchain
@@ -8,7 +9,7 @@ from block import Block
 
 
 class Node:
-    def __init__(self, host, port, blockchain, stake=0, is_bootstrap=False, nonce=0, total_nodes=5):
+    def __init__(self, host, port, blockchain, stake=0, is_bootstrap=False, nonce = 0, total_nodes=5):
         self.host = host
         self.port = port
         self.stake_amount = stake  
@@ -89,7 +90,7 @@ class Node:
             return False, None
         
         assigned_node_id = self.next_node_id
-
+        print(f"Current node: {assigned_node_id}")
         self.nodes[assigned_node_id] = {'public_key': public_key, 'address': node_address}
         self.next_node_id += 1
         print(f"Node {assigned_node_id} registered with public key {public_key}.")
@@ -98,11 +99,13 @@ class Node:
 
         blockchain_data = [block.to_dict() for block in self.blockchain.chain]
         self.broadcast_blockchain(blockchain_data)
+        print(f"Node {assigned_node_id} registered with public_key {public_key}.")
+        print(f"Text node: {self.next_node_id}")
+        print(f"Total nodes: {self.total_nodes}")
         if self.next_node_id == self.total_nodes:
             self.broadcast_all()
         else: 
             print("Not all nodes have entered")
-        print(f"Node {assigned_node_id} registered with public_key {public_key}.")
 
         return True, assigned_node_id
 
@@ -168,13 +171,24 @@ class Node:
         print("No match found.")
         return None
 
-    
     def get_next_nonce(self):
 
-        self.nonce += 1
+        # Start by considering transactions in the blockchain
+        max_nonce = 0
+        for block in self.blockchain.chain:
+            for transaction in block.transactions:
+                if transaction['sender_address'] == self.wallet.address:
+                    max_nonce = max(max_nonce, transaction['nonce'])
 
-        # The next nonce should be one more than the max found in the transaction history
-        return self.nonce
+        # Also consider transactions in the transaction pool
+        for transaction in self.blockchain.transaction_pool:
+            # Update max_nonce based on transactions by the sender
+            if transaction['sender_address'] == self.wallet.address:
+                max_nonce = max(max_nonce, transaction['nonce'])
+
+        # The next nonce should be one more than the max found
+        return max_nonce + 1
+
 
 
     def stake(self, amount):
@@ -338,7 +352,6 @@ class Node:
             for node_id, node_info in self.nodes.items()
         }
 
-
         try:
             self.send_data(data_to_broadcast)
         except Exception as e:
@@ -419,7 +432,8 @@ class Node:
         print("Transaction sent successfully.")
 
     def broadcast_blockchain(self, blockchain_data, max_retries=3, delay=2):
-        node_addresses = [node_info['address'] for node_info in self.nodes.values()]
+        
+        node_addresses = [node_info["address"] for node_id, node_info in self.nodes.items()]
         for node_address in node_addresses:
             success = False
             for attempt in range(max_retries):

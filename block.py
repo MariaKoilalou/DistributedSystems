@@ -17,7 +17,7 @@ class Block:
         block_data = {
             'index': self.index,
             'timestamp': self.timestamp,
-            'transactions': sorted(self.transactions, key=lambda x: json.dumps(x)),
+            'transactions': self.transactions,
             'validator': self.validator,
             'previous_hash': self.previous_hash
         }
