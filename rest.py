@@ -80,16 +80,27 @@ def consensus():
 def update_blockchain():
     data = request.get_json()
 
-    if not data or 'chain' not in data:
+    if not data:
         return jsonify({'error': 'Invalid data received'}), 400
 
-    blockchain_data = data['chain']
+    # blockchain_data = data['chain']
 
-    if node.update_blockchain(blockchain_data):
+    if node.update_blockchain(data):
         return jsonify({'message': 'Blockchain updated successfully'}), 200
     else:
         return jsonify({'error': 'Failed to update blockchain'}), 500
  
+@app.route('/receive_data', methods=['POST'])
+def receive_nodes():
+    if request.is_json:
+        received_data = request.get_json()
+
+        node.update_nodes(received_data)
+
+        return jsonify({'message': 'Nodes updated successfully'}), 200
+    else:
+        return jsonify({'error': 'Request must be JSON'}), 400
+
 
 if __name__ == '__main__':
     import argparse
@@ -103,9 +114,8 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     blockchain = Blockchain()  # Assuming a Blockchain class is defined elsewhere
-    wallet = Wallet()  # Assuming a Wallet class is defined elsewhere
 
-    node = Node(host=args.host, port=args.port, blockchain=blockchain, wallet=wallet, is_bootstrap=args.is_bootstrap)
+    node = Node(host=args.host, port=args.port, blockchain=blockchain, is_bootstrap=args.is_bootstrap)
     
     # Node registration logic
     if not args.is_bootstrap and args.bootstrap_url:
@@ -115,11 +125,11 @@ if __name__ == '__main__':
         else:
             print("Failed to register with the bootstrap node.")
 
-    bootstrap_balance = node.check_balance()
-    print(f"Bootstrap node balance: {bootstrap_balance} BCC")
+    balance = node.check_balance()
+    print(f"node balance: {balance} BCC")
 
     # CLI Thread
-    cli_thread = Thread(target=cli.run_cli, args=(node, wallet, blockchain, shutdown_event))
+    cli_thread = Thread(target=cli.run_cli, args=(node, blockchain, shutdown_event))
     cli_thread.start()
 
     try:

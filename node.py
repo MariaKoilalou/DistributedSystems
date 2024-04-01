@@ -8,7 +8,7 @@ from block import Block
 
 
 class Node:
-    def __init__(self, host, port, blockchain, wallet, stake=0, is_bootstrap=False, n=None, total_nodes=5):
+    def __init__(self, host, port, blockchain, stake=0, is_bootstrap=False, nonce=0, total_nodes=5):
         self.host = host
         self.port = port
         self.stake_amount = stake  
@@ -16,7 +16,8 @@ class Node:
         self.is_bootstrap = is_bootstrap
         self.api_url = f'http://{host}:{port}/'
         self.blockchain = blockchain
-        self.wallet = wallet
+        self.nonce = nonce
+        self.wallet = self.generate_wallet()
         self.node_id = 0 if is_bootstrap else None
         self.stakes = {}  # Dictionary to store stakes of other nodes
         self.balances = {}  # Dictionary to store balances of other nodes
@@ -25,8 +26,17 @@ class Node:
         
         if is_bootstrap:
             self.next_node_id = 1
+            self.nodes[self.node_id] = {'public_key': self.wallet.public_key, 'address': self.api_url}
             self.initialize_genesis_block()
 
+    def update_nodes(self, received_nodes_info):
+        """Updates the nodes dictionary with the received nodes information."""
+        for node_id, node_info in received_nodes_info.items():
+            self.nodes[node_id] = node_info
+        print("Nodes updated successfully")
+
+    def generate_wallet(self):
+        return Wallet()
 
     def initialize_genesis_block(self):
         total_nodes = self.total_nodes
@@ -79,6 +89,7 @@ class Node:
             return False, None
         
         assigned_node_id = self.next_node_id
+
         self.nodes[assigned_node_id] = {'public_key': public_key, 'address': node_address}
         self.next_node_id += 1
         print(f"Node {assigned_node_id} registered with public key {public_key}.")
@@ -87,7 +98,10 @@ class Node:
 
         blockchain_data = [block.to_dict() for block in self.blockchain.chain]
         self.broadcast_blockchain(blockchain_data)
-        
+        if self.next_node_id == self.total_nodes:
+            self.broadcast_all()
+        else: 
+            print("Not all nodes have entered")
         print(f"Node {assigned_node_id} registered with public_key {public_key}.")
 
         return True, assigned_node_id
@@ -99,28 +113,22 @@ class Node:
         Create and execute a transaction to transfer BCC from this node to a new node,
         then mint a new block containing this transaction.
         """
-        # Step 1: Create a signed transaction using the wallet
-        signed_transaction = self.wallet.create_signed_transaction(
-            recipient_address=recipient_public_key,
-            amount=amount,
-            message="Welcome to the network!",
-            nonce=self.get_next_nonce()  # Assuming a method to manage nonce
-        )
 
-        # Extract necessary fields from signed_transaction
-        sender_address = self.wallet.public_key  # Sender address is the public key of the wallet
-        receiver_address = recipient_public_key  # Assign recipient address directly
-        amount = signed_transaction['amount']  # Extract amount from signed transaction
-        message = signed_transaction['message']  # Extract message from signed transaction
-        nonce = signed_transaction['nonce']  # Extract nonce from signed transaction
+        sender_address = self.wallet.public_key  
+        receiver_address = recipient_public_key  
+        amount = amount  
+        message = "Welcome to the network!"  
+        nonce = self.get_next_nonce()  
 
         # Create a Transaction object with extracted fields
         transaction = Transaction(sender_address, receiver_address, "regular", amount, message, nonce)
-
+           
         transaction = transaction.to_dict()
 
+        signed_transaction = self.wallet.sign_transaction(transaction)
+
         # Add the signed transaction to the transaction pool
-        self.blockchain.add_transaction_to_pool(transaction)
+        self.blockchain.add_transaction_to_pool(signed_transaction)
 
         # Mint a new block containing this transaction (PoS-specific logic may apply here)
         self.blockchain.mint_block(self.wallet.public_key)  # Use bootstrap node's public key as the validator
@@ -150,29 +158,23 @@ class Node:
         return True, "Transaction processed successfully"
 
     def get_node_id_by_public_key(self, public_key):
+        # print("Searching for public_key:", public_key)
         # Iterate over the dictionary items
         for node_id, node_info in self.nodes.items():
+            # print("Comparing with node:", node_id, node_info)
             if node_info["public_key"] == public_key:
+                print("Match found! Node ID:", node_id)
                 return node_id  # Return the key (node ID)
+        print("No match found.")
         return None
+
     
     def get_next_nonce(self):
-        """
-        Retrieve the next nonce for transactions from this node by inspecting the transaction history.
-        The nonce is incremented for each new transaction to ensure uniqueness.
-        """
-        max_nonce = 0  # Start with 0, assuming no transactions yet
 
-        # Iterate through the blockchain to find transactions with this node's address as the sender
-        for block in self.blockchain.chain:
-            for transaction in block.transactions:
-                # Assuming 'transactions' in a block is a list of transaction dictionaries
-                # And each transaction dictionary has 'sender_address' and 'nonce' keys
-                if transaction['sender_address'] == self.wallet.address:
-                    max_nonce = max(max_nonce, transaction['nonce'])
+        self.nonce += 1
 
         # The next nonce should be one more than the max found in the transaction history
-        return max_nonce + 1
+        return self.nonce
 
 
     def stake(self, amount):
@@ -326,8 +328,44 @@ class Node:
             self.blockchain.chain = current_chain_backup  # Restore the original chain in case of error
             return False
 
-    
+    def broadcast_all(self):
+        # Data to be broadcasted: IP address, port, and public keys of all nodes
+        data_to_broadcast = {
+            node_id: {
+                'address': node_info['address'],
+                'public_key': node_info['public_key']
+            }
+            for node_id, node_info in self.nodes.items()
+        }
 
+
+        try:
+            self.send_data(data_to_broadcast)
+        except Exception as e:
+            print(f"Failed to send data")
+
+        print("Broadcast completed to all nodes in the network.")
+
+    def send_data(self, data):
+        """
+        Sends data to all nodes in the network.
+
+        Args:
+        nodes (dict): A dictionary of nodes with their IP addresses and ports.
+        data (dict): The data to be broadcasted to all nodes.
+        """
+        for node_id, node_info in self.nodes.items():
+            ip_address = node_info['address']
+            url = f"{ip_address}receive_data"
+
+            try:
+                response = requests.post(url, json=data)
+                if response.status_code == 200:
+                    print(f"Data successfully sent to node {node_id}.")
+                else:
+                    print(f"Failed to send data to node {node_id}. Status code: {response.status_code}")
+            except requests.exceptions.RequestException as e:
+                print(f"Failed to send data to node {node_id}: {e}")
 
     def view(self):
         """
@@ -337,13 +375,15 @@ class Node:
         last_block = self.blockchain.get_last_block()
         if last_block:
             transactions = last_block.transactions
+            val_id = self.get_node_id_by_public_key(last_block.validator)
+            print(f"Validator id:{val_id}")
             print("Last transactions:")
             for transaction in transactions:
                 print(transaction)
         else:
             print("Blockchain is empty or not synchronized.")
 
-    def sendTransCli(self, recipient_address, amount):
+    def create_transaction(self, recipient_address, amount):
         """
         Send a transaction to the recipient address with the specified amount.
         """
@@ -384,7 +424,7 @@ class Node:
             success = False
             for attempt in range(max_retries):
                 try:
-                    response = requests.post(f"{node_address}/update_blockchain", json=blockchain_data)
+                    response = requests.post(f"{node_address}update_blockchain", json=blockchain_data)
                     if response.status_code == 200:
                         print(f"Successfully broadcasted blockchain to {node_address}.")
                         success = True

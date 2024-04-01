@@ -1,4 +1,4 @@
-def run_cli(node_instance, my_wallet, blockchain_instance, shutdown_event):
+def run_cli(node_instance, blockchain_instance, shutdown_event):
     print("\nWelcome! Use help to see the available commands.")
 
     while not shutdown_event.is_set():
@@ -9,11 +9,12 @@ def run_cli(node_instance, my_wallet, blockchain_instance, shutdown_event):
             print(f"Balance= {my_balance}")
         elif action == 'view':
             node_instance.view()
+            print(f"{node_instance.nodes}")
         elif action.startswith('t '):
             parts = action.split()
             if len(parts) == 3:
                 _, recipient_address, amount = parts
-                node_instance.sendTransCli(recipient_address, amount)
+                node_instance.create_transaction(recipient_address, amount)
             else:
                 print("Invalid command format. Expected: 't <recipient_address> <amount>'")
         elif action.startswith('stake '):

@@ -29,11 +29,7 @@ class Wallet:
     def sign_transaction(self, transaction):
         """
         Sign a transaction with the wallet's private key.
-        """
-        if self.address == "0" and self.private_key == "genesis_signature":
-            # Directly return the 'genesis_signature' without actual signing
-            return "genesis_signature"
-
+        """        
         transaction_string = json.dumps(transaction, sort_keys=True)
         transaction_bytes = transaction_string.encode('utf-8')
         transaction_hash = SHA256.new(transaction_bytes)
@@ -41,8 +37,10 @@ class Wallet:
         signer = pkcs1_15.new(private_key)
         signature = signer.sign(transaction_hash)
         
+        transaction['signature'] = base64.b64encode(signature).decode('utf-8')
+        return transaction
         # Return the signature in Base64 to ensure it's easily transmittable
-        return base64.b64encode(signature).decode('utf-8')
+        # return base64.b64encode(signature).decode('utf-8')
 
     def verify_signature(self, transaction, signature, sender_public_key):
         """
@@ -59,21 +57,21 @@ class Wallet:
         except (ValueError, TypeError):
             return False
 
-    def create_signed_transaction(self, recipient_address, amount, message, nonce):
+    # def create_signed_transaction(self, transaction):
         """
         Create a new transaction with the given details and sign it with the wallet's private key.
         """
         # Construct the transaction details
-        transaction_details = {
-            'sender_address': self.address,  # Use the wallet's address as the sender
-            'recipient_address': recipient_address,
-            'amount': amount,
-            'message': message,
-            'nonce': nonce,
-        }
+        # transaction_details = {
+        #     'sender_address': self.address,  # Use the wallet's address as the sender
+        #     'recipient_address': recipient_address,
+        #     'amount': amount,
+        #     'message': message,
+        #     'nonce': nonce,
+        # }
 
-        transaction_details['signature'] = self.sign_transaction(transaction_details)
-        return transaction_details
+        # transaction['signature'] = self.sign_transaction(transaction)
+        # return transaction
     
     # Add methods to update and get the wallet's balance as needed
     def update_balance(self, amount):
