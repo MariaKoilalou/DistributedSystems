@@ -1,11 +1,12 @@
-def run_cli(node_instance, my_wallet, shutdown_event):
+def run_cli(node_instance, my_wallet, blockchain_instance, shutdown_event):
     print("\nWelcome! Use help to see the available commands.")
 
     while not shutdown_event.is_set():
         action = input()
         print("\n")
         if action == 'balance':
-            my_wallet.show_balance()
+            my_balance = node_instance.check_balance()
+            print(f"Balance= {my_balance}")
         elif action == 'view':
             node_instance.view()
         elif action.startswith('t '):

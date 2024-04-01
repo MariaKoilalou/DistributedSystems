@@ -1,6 +1,5 @@
+import time
 import requests
-import json
-
 from wallet import Wallet
 from blockchain import Blockchain
 from transaction import Transaction

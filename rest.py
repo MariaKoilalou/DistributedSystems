@@ -119,7 +119,7 @@ if __name__ == '__main__':
     print(f"Bootstrap node balance: {bootstrap_balance} BCC")
 
     # CLI Thread
-    cli_thread = Thread(target=cli.run_cli, args=(node, wallet, shutdown_event))
+    cli_thread = Thread(target=cli.run_cli, args=(node, wallet, blockchain, shutdown_event))
     cli_thread.start()
 
     try:
