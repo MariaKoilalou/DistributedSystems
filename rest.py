@@ -109,7 +109,7 @@ if __name__ == '__main__':
     
     # Node registration logic
     if not args.is_bootstrap and args.bootstrap_url:
-        success = node.register_with_bootstrap(args.bootstrap_url, node.wallet.publick_key)
+        success = node.register_with_bootstrap(args.bootstrap_url, node.wallet.public_key)
         if success:
             print("Registration with the bootstrap node was successful.")
         else:

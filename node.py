@@ -80,18 +80,18 @@ class Node:
         
         assigned_node_id = self.next_node_id
         self.nodes[assigned_node_id] = {'public_key': public_key, 'address': node_address}
-        self.next_node_id += 1  # Prepare ID for the next node
+        self.next_node_id += 1
         print(f"Node {assigned_node_id} registered with public key {public_key}.")
 
-        # Transfer 1000 BCC from the bootstrap node to the new node
         self.transfer_bcc_to_new_node(public_key, 1000)
 
-        # # After registering the new node, broadcast the updated nodes and blockchain to all nodes
-        self.broadcast_blockchain()
-
-        print(f"Node {assigned_node_id} registered with public key {public_key}.")
+        blockchain_data = [block.to_dict() for block in self.blockchain.chain]
+        self.broadcast_blockchain(blockchain_data)
+        
+        print(f"Node {assigned_node_id} registered with public_key {public_key}.")
 
         return True, assigned_node_id
+
 
 
     def transfer_bcc_to_new_node(self, recipient_public_key, amount):
@@ -120,7 +120,7 @@ class Node:
         transaction = transaction.to_dict()
 
         # Add the signed transaction to the transaction pool
-        self.blockchain.add_transaction_to_pool(transaction.to_dict())
+        self.blockchain.add_transaction_to_pool(transaction)
 
         # Mint a new block containing this transaction (PoS-specific logic may apply here)
         self.blockchain.mint_block(self.wallet.public_key)  # Use bootstrap node's public key as the validator
@@ -378,7 +378,8 @@ class Node:
         self.broadcast_transaction(transaction)
         print("Transaction sent successfully.")
 
-    def broadcast_blockchain(node_addresses, blockchain_data, max_retries=3, delay=2):
+    def broadcast_blockchain(self, blockchain_data, max_retries=3, delay=2):
+        node_addresses = [node_info['address'] for node_info in self.nodes.values()]
         for node_address in node_addresses:
             success = False
             for attempt in range(max_retries):
@@ -395,6 +396,6 @@ class Node:
                 time.sleep(delay)  # Wait for a bit before retrying
             if not success:
                 print(f"Failed to broadcast blockchain to {node_address} after {max_retries} attempts.")
-    
+        
     def check_balance(self):
         return self.wallet.calculate_balance(self.blockchain)
