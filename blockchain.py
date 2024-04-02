@@ -12,7 +12,7 @@ class Blockchain:
         self.transaction_pool = []
         self.stakes = {}
         self.validatorHistory = {}
-        self.block_capacity = 3
+        self.block_capacity = 2
     
     def add_transaction_to_pool(self, transaction):
         self.transaction_pool.append(transaction)

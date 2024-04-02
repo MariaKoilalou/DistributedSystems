@@ -5,8 +5,9 @@ from wallet import Wallet
 from blockchain import Blockchain
 from transaction import Transaction
 from block import Block
+from threading import Lock
 
-
+blockchain_lock = Lock()
 
 class Node:
     def __init__(self, host, port, blockchain, stake=0, is_bootstrap=False, nonce = 0, total_nodes=5):
@@ -33,6 +34,8 @@ class Node:
     def update_nodes(self, received_nodes_info):
         """Updates the nodes dictionary with the received nodes information."""
         for node_id, node_info in received_nodes_info.items():
+            if node_id == self.node_id:
+                continue
             self.nodes[node_id] = node_info
         print("Nodes updated successfully")
 
@@ -91,6 +94,12 @@ class Node:
         
         assigned_node_id = self.next_node_id
         print(f"Current node: {assigned_node_id}")
+        
+        # Use public_key as the unique identifier for simplicity
+        if public_key in self.nodes:
+            print(f"Node with public key {public_key} is already registered.")
+            return False, None
+        
         self.nodes[assigned_node_id] = {'public_key': public_key, 'address': node_address}
         self.next_node_id += 1
         print(f"Node {assigned_node_id} registered with public key {public_key}.")
@@ -102,10 +111,6 @@ class Node:
         print(f"Node {assigned_node_id} registered with public_key {public_key}.")
         print(f"Text node: {self.next_node_id}")
         print(f"Total nodes: {self.total_nodes}")
-        if self.next_node_id == self.total_nodes:
-            self.broadcast_all()
-        else: 
-            print("Not all nodes have entered")
 
         return True, assigned_node_id
 
@@ -310,37 +315,38 @@ class Node:
         return True, "Transaction processed successfully"
 
     def update_blockchain(self, incoming_chain):
-        try:
-            # Temporarily save the current blockchain
-            current_chain_backup = self.blockchain.chain
+        with blockchain_lock:
+            try:
+                # Temporarily save the current blockchain
+                current_chain_backup = self.blockchain.chain
 
-            # Convert the incoming chain data into Block instances and set it as the current blockchain chain for validation
-            self.blockchain.chain = [Block(**block_data) for block_data in incoming_chain]
+                # Convert the incoming chain data into Block instances and set it as the current blockchain chain for validation
+                self.blockchain.chain = [Block(**block_data) for block_data in incoming_chain]
 
-            # Validate the temporarily set incoming chain
-            if self.blockchain.validate_chain():
-                current_len = len(current_chain_backup)
-                incoming_len = len(self.blockchain.chain)
+                # Validate the temporarily set incoming chain
+                if self.blockchain.validate_chain():
+                    current_len = len(current_chain_backup)
+                    incoming_len = len(self.blockchain.chain)
 
-                # Check if the incoming chain is longer than the current chain
-                if incoming_len > current_len:
-                    # The incoming chain is valid and longer, keep it as the new chain
-                    print(f"Blockchain updated with a longer chain of length {incoming_len}.")
-                    return True
+                    # Check if the incoming chain is longer than the current chain
+                    if incoming_len > current_len:
+                        # The incoming chain is valid and longer, keep it as the new chain
+                        print(f"Blockchain updated with a longer chain of length {incoming_len}.")
+                        return True
+                    else:
+                        # The incoming chain is valid but not longer, restore the original chain
+                        self.blockchain.chain = current_chain_backup
+                        print("Received chain is not longer than the current chain.")
                 else:
-                    # The incoming chain is valid but not longer, restore the original chain
+                    # The incoming chain is invalid, restore the original chain
                     self.blockchain.chain = current_chain_backup
-                    print("Received chain is not longer than the current chain.")
-            else:
-                # The incoming chain is invalid, restore the original chain
-                self.blockchain.chain = current_chain_backup
-                print("Received chain is invalid.")
+                    print("Received chain is invalid.")
 
-            return False
-        except Exception as e:
-            print(f"An error occurred during blockchain update: {e}")
-            self.blockchain.chain = current_chain_backup  # Restore the original chain in case of error
-            return False
+                return False
+            except Exception as e:
+                print(f"An error occurred during blockchain update: {e}")
+                self.blockchain.chain = current_chain_backup  # Restore the original chain in case of error
+                return False
 
     def broadcast_all(self):
         # Data to be broadcasted: IP address, port, and public keys of all nodes
@@ -368,6 +374,8 @@ class Node:
         data (dict): The data to be broadcasted to all nodes.
         """
         for node_id, node_info in self.nodes.items():
+            if node_id == self.node_id:
+                continue
             ip_address = node_info['address']
             url = f"{ip_address}receive_data"
 
@@ -431,25 +439,24 @@ class Node:
         self.broadcast_transaction(transaction)
         print("Transaction sent successfully.")
 
-    def broadcast_blockchain(self, blockchain_data, max_retries=3, delay=2):
+    def broadcast_blockchain(self, blockchain_data):
         
         node_addresses = [node_info["address"] for node_id, node_info in self.nodes.items()]
         for node_address in node_addresses:
-            success = False
-            for attempt in range(max_retries):
-                try:
-                    response = requests.post(f"{node_address}update_blockchain", json=blockchain_data)
-                    if response.status_code == 200:
-                        print(f"Successfully broadcasted blockchain to {node_address}.")
-                        success = True
-                        break
-                    else:
-                        print(f"Failed to broadcast blockchain to {node_address}. Status Code: {response.status_code}")
-                except requests.exceptions.RequestException as e:
-                    print(f"Error broadcasting blockchain to {node_address}: {e}")
-                time.sleep(delay)  # Wait for a bit before retrying
-            if not success:
-                print(f"Failed to broadcast blockchain to {node_address} after {max_retries} attempts.")
+            try:
+                response = requests.post(f"{node_address}update_blockchain", json=blockchain_data)
+                if response.status_code == 200:
+                    if self.next_node_id == self.total_nodes:
+                        self.broadcast_all()
+                    else: 
+                        print("Not all nodes have entered")
+                    print(f"Successfully broadcasted blockchain to {node_address}.")
+                    break
+                else:
+                    print(f"Failed to broadcast blockchain to {node_address}. Status Code: {response.status_code}")
+            except requests.exceptions.RequestException as e:
+                print(f"Error broadcasting blockchain to {node_address}: {e}")
+
         
     def check_balance(self):
         return self.wallet.calculate_balance(self.blockchain)

@@ -1,4 +1,6 @@
+import logging
 from threading import Thread, Event
+from flask.logging import default_handler
 from flask import Flask, request, jsonify
 from block import Block
 from node import Node  # Assuming your Node class is inside a folder named 'network'
@@ -6,9 +8,14 @@ from blockchain import Blockchain
 from transaction import Transaction
 from wallet import Wallet
 from uuid import uuid4
+
 import cli 
 
 app = Flask(__name__)
+
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+logger.addHandler(default_handler)
 
 shutdown_event = Event()
 
@@ -19,31 +26,35 @@ node_identifier = str(uuid4()).replace('-', '')
 
 @app.route('/register', methods=['POST'])
 def register():
-    values = request.get_json()
-    
-    # Extract the public key and node address from the incoming JSON
-    public_key = values.get('public_key')
-    node_address = values.get('node_address')
+    try:
+        values = request.get_json()
+        
+        # Extract the public key and node address from the incoming JSON
+        public_key = values.get('public_key')
+        node_address = values.get('node_address')
 
-    # Validate the incoming data
-    if not public_key or not node_address:
-        return jsonify({'message': 'Missing public key or node address'}), 400
-    
-    success, node_id = node.register_node(public_key, node_address)
-    blockchain_data = [block.to_dict() for block in node.blockchain.chain]
+        # Validate the incoming data
+        if not public_key or not node_address:
+            return jsonify({'message': 'Missing public key or node address'}), 400
+        
+        success, node_id = node.register_node(public_key, node_address)
+        blockchain_data = [block.to_dict() for block in node.blockchain.chain]
 
-    # Use the register_node method from the Node class to add the new node
-    if success:
-        response = {
-            'message': 'New node registered successfully',
-            'node_id': node_id,  # Include the node ID in the response
-            'node_address': node_address,
-            'total_nodes': [node_info['address'] for node_info in node.nodes.values()],
-            'blockchain': blockchain_data
-        }
-        return jsonify(response), 200
-    else:
-        return jsonify({'message': 'Node registration failed'}), 500
+        # Use the register_node method from the Node class to add the new node
+        if success:
+            response = {
+                'message': 'New node registered successfully',
+                'node_id': node_id,  # Include the node ID in the response
+                'node_address': node_address,
+                'total_nodes': [node_info['address'] for node_info in node.nodes.values()],
+                'blockchain': blockchain_data
+            }
+            return jsonify(response), 200
+        else:
+            return jsonify({'message': 'Node registration failed'}), 500
+    except Exception as e:
+        logger.exception("Failed to register node: %s", e)
+        return jsonify({'error': 'Internal server error'}), 500    
 
 
 @app.route('/transactions/new', methods=['POST'])
@@ -78,23 +89,30 @@ def consensus():
 
 @app.route('/update_blockchain', methods=['POST'])
 def update_blockchain():
-    data = request.get_json()
+    try:
+        data = request.get_json()
 
-    if not data:
-        return jsonify({'error': 'Invalid data received'}), 400
+        if not data:
+            return jsonify({'error': 'Invalid data received'}), 400
 
-    if node.update_blockchain(data):
-        return jsonify({'message': 'Blockchain updated successfully'}), 200
-    else:
-        return jsonify({'error': 'Failed to update blockchain'}), 500
- 
+        if node.update_blockchain(data):
+            return jsonify({'message': 'Blockchain updated successfully'}), 200
+        else:
+            return jsonify({'error': 'Failed to update blockchain'}), 500
+    except Exception as e:
+        logger.exception("Failed to update blockchain: %s", e)
+        return jsonify({'error': 'Internal server error'}), 500
+
+
 @app.route('/receive_data', methods=['POST'])
 def receive_nodes():
-
-    received_data = request.get_json()
-    node.update_nodes(received_data)
-    return jsonify({'message': 'Node updated successfully'}), 200
-
+    try:
+        received_data = request.get_json()
+        node.update_nodes(received_data)
+        return jsonify({'message': 'Node updated successfully'}), 200
+    except Exception as e:
+        logger.exception("Failed to receive node: %s", e)
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 

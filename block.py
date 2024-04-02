@@ -3,7 +3,7 @@ import hashlib
 import json
 
 class Block:
-    def __init__(self, index, transactions, validator, previous_hash, capacity=3, timestamp=None, current_hash=None):
+    def __init__(self, index, transactions, validator, previous_hash, capacity=2, timestamp=None, current_hash=None):
         self.index = index
         self.timestamp = round(timestamp if timestamp is not None else time.time(), 4)
         self.transactions = transactions[:capacity]  # Limit transactions to capacity
