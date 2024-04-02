@@ -115,6 +115,11 @@ def receive_nodes():
         return jsonify({'error': 'Internal server error'}), 500
 
 
+@app.route('/trigger_broadcast', methods=['POST'])
+def trigger_broadcast():
+    # Trigger the broadcast_all method on the bootstrap node
+    node.broadcast_all()
+    return jsonify({'message': 'Broadcast triggered successfully'}), 200
 
 if __name__ == '__main__':
     import argparse

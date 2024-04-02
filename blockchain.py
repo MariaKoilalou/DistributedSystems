@@ -19,7 +19,6 @@ class Blockchain:
         print('Transaction added to pool')
         return
     
-
     def mint_block(self, validator):
         # Only create a new block if there are transactions in the pool
         if len(self.transaction_pool) >= self.block_capacity:

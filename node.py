@@ -69,17 +69,26 @@ class Node:
         response = requests.post(bootstrap_url + '/register', json={'public_key': public_key, 'node_address': self.api_url})
         if response.status_code == 200:
             data = response.json()
-            # Check if 'node_address' key exists in the response
             if 'node_address' in data:
                 print('Registered with the bootstrap node')
-                # Initialize the local blockchain with the received state
                 received_chain = data['blockchain']
-                # Assuming you have a method to replace the current blockchain with a new one
                 self.update_blockchain(received_chain)
                 print('Local blockchain initialized with the received state from the bootstrap node')
+                
+                # Check if this is the last node to register
+                if len(data['total_nodes']) == self.total_nodes:
+                    # Make a request to the bootstrap node to trigger broadcast_all
+                    try:
+                        trigger_response = requests.post(bootstrap_url + '/trigger_broadcast', json={})
+                        if trigger_response.status_code == 200:
+                            print("Bootstrap broadcast triggered successfully.")
+                        else:
+                            print("Failed to trigger bootstrap broadcast.")
+                    except Exception as e:
+                        print(f"Failed to make request to trigger broadcast: {e}")
+                    
                 return True
             else:
-                # Handle the case where 'node_address' is not present
                 print('Error: node_address not found in the response.')
                 return False
         return False
@@ -446,10 +455,10 @@ class Node:
             try:
                 response = requests.post(f"{node_address}update_blockchain", json=blockchain_data)
                 if response.status_code == 200:
-                    if self.next_node_id == self.total_nodes:
-                        self.broadcast_all()
-                    else: 
-                        print("Not all nodes have entered")
+                    # if self.next_node_id == self.total_nodes:
+                    #     self.broadcast_all()
+                    # else: 
+                    #     print("Not all nodes have entered")
                     print(f"Successfully broadcasted blockchain to {node_address}.")
                     break
                 else:
