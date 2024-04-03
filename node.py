@@ -1,6 +1,5 @@
 import time
 import json
-from urllib.parse import urljoin
 import requests
 from wallet import Wallet
 from blockchain import Blockchain
@@ -457,32 +456,20 @@ class Node:
         print("Transaction sent successfully.")
 
     def broadcast_blockchain(self):
+        
+        node_addresses = [node_info["address"] for node_id, node_info in self.nodes.items()]
         blockchain_data = [block.to_dict() for block in self.blockchain.chain]
-        for node_id, node_info in self.nodes.items():
-            node_address = node_info["address"]
-            if self.check_node_readiness(node_address):
-                update_url = urljoin(node_address, 'update_blockchain')
-                try:
-                    response = requests.post(update_url, json=blockchain_data)
-                    if response.status_code == 200:
-                        print(f"Successfully broadcasted blockchain to {node_address}.")
-                    else:
-                        print(f"Failed to broadcast blockchain to {node_address}. Status Code: {response.status_code}")
-                except requests.exceptions.RequestException as e:
-                    print(f"Error broadcasting blockchain to {node_address}: {e}")
-            else:
-                print(f"Node {node_address} is not ready. Skipping data broadcast to this node.")
+        for node_address in node_addresses:
+            print(f"{node_address}")
+            try:
+                response = requests.post(f"{node_address}update_blockchain", json=blockchain_data)
+                if response.status_code == 200:
+                    print(f"Successfully broadcasted blockchain to {node_address}.")
+                else:
+                    print(f"Failed to broadcast blockchain to {node_address}. Status Code: {response.status_code}")
+            except requests.exceptions.RequestException as e:
+                print(f"Error broadcasting blockchain to {node_address}: {e}")
 
         
-    def check_node_readiness(self, node_address):
-        status_url = urljoin(node_address, 'status')
-        try:
-            response = requests.get(status_url)
-            return response.status_code == 200  # Node is ready if status code is 200
-        except requests.exceptions.RequestException as e:
-            print(f"Error checking readiness of node {node_address}: {e}")
-            return False
-    
-            
     def check_balance(self):
         return self.wallet.calculate_balance(self.blockchain)
