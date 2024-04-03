@@ -193,6 +193,3 @@ if __name__ == '__main__':
         shutdown_event.set()  # Signal CLI thread to shut down
         cli_thread.join()  # Wait for the CLI thread to exit
         print("Flask app and CLI have shut down.")
-
-
-
