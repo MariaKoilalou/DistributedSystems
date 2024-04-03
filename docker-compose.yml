@@ -1,0 +1,17 @@
+version: '3.7'
+
+services:
+  blockchain-node:
+    container_name: blockchain-node-${NODE_ID}
+    image: your-blockchain-node-image
+    environment:
+      - NODE_ID=${NODE_ID}
+      - BOOTSTRAP_ADDRESS=${BOOTSTRAP_ADDRESS}  #
+    ports:
+      - "${NODE_PORT}:${NODE_PORT}"  
+    networks:
+      - blockchain_network
+
+networks:
+  blockchain_network:
+    driver: bridge
