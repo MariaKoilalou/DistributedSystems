@@ -1,5 +1,6 @@
 import time
 import json
+from urllib.parse import urljoin
 import requests
 from wallet import Wallet
 from blockchain import Blockchain
@@ -71,10 +72,15 @@ class Node:
             data = response.json()
             if 'node_address' in data:
                 print('Registered with the bootstrap node')
-                received_chain = data['blockchain']
-                self.update_blockchain(received_chain)
                 print('Local blockchain initialized with the received state from the bootstrap node')
-                
+                try:
+                    broadcast_response = requests.post(bootstrap_url + '/broadcast_blockchain', json={})
+                    if broadcast_response.status_code == 200:
+                        print("Bootstrap broadcasted blockchain successfully.")
+                    else:
+                        print("Failed to broadcast blockchain bootstrap.")
+                except Exception as e:
+                    print(f"Failed to make request to trigger broadcast: {e}")
                 # Check if this is the last node to register
                 if len(data['total_nodes']) == self.total_nodes:
                     # Make a request to the bootstrap node to trigger broadcast_all
@@ -115,8 +121,8 @@ class Node:
 
         self.transfer_bcc_to_new_node(public_key, 1000)
 
-        blockchain_data = [block.to_dict() for block in self.blockchain.chain]
-        self.broadcast_blockchain(blockchain_data)
+        # blockchain_data = [block.to_dict() for block in self.blockchain.chain]
+        # self.broadcast_blockchain(blockchain_data)
         print(f"Node {assigned_node_id} registered with public_key {public_key}.")
         print(f"Text node: {self.next_node_id}")
         print(f"Total nodes: {self.total_nodes}")
@@ -336,9 +342,11 @@ class Node:
                 if self.blockchain.validate_chain():
                     current_len = len(current_chain_backup)
                     incoming_len = len(self.blockchain.chain)
+                    print(f"Current length:{current_len}")
+                    print(f"Incoming length:{incoming_len}")
 
                     # Check if the incoming chain is longer than the current chain
-                    if incoming_len > current_len:
+                    if incoming_len >= current_len:
                         # The incoming chain is valid and longer, keep it as the new chain
                         print(f"Blockchain updated with a longer chain of length {incoming_len}.")
                         return True
@@ -448,24 +456,33 @@ class Node:
         self.broadcast_transaction(transaction)
         print("Transaction sent successfully.")
 
-    def broadcast_blockchain(self, blockchain_data):
-        
-        node_addresses = [node_info["address"] for node_id, node_info in self.nodes.items()]
-        for node_address in node_addresses:
-            try:
-                response = requests.post(f"{node_address}update_blockchain", json=blockchain_data)
-                if response.status_code == 200:
-                    # if self.next_node_id == self.total_nodes:
-                    #     self.broadcast_all()
-                    # else: 
-                    #     print("Not all nodes have entered")
-                    print(f"Successfully broadcasted blockchain to {node_address}.")
-                    break
-                else:
-                    print(f"Failed to broadcast blockchain to {node_address}. Status Code: {response.status_code}")
-            except requests.exceptions.RequestException as e:
-                print(f"Error broadcasting blockchain to {node_address}: {e}")
+    def broadcast_blockchain(self):
+        blockchain_data = [block.to_dict() for block in self.blockchain.chain]
+        for node_id, node_info in self.nodes.items():
+            node_address = node_info["address"]
+            if self.check_node_readiness(node_address):
+                update_url = urljoin(node_address, 'update_blockchain')
+                try:
+                    response = requests.post(update_url, json=blockchain_data)
+                    if response.status_code == 200:
+                        print(f"Successfully broadcasted blockchain to {node_address}.")
+                    else:
+                        print(f"Failed to broadcast blockchain to {node_address}. Status Code: {response.status_code}")
+                except requests.exceptions.RequestException as e:
+                    print(f"Error broadcasting blockchain to {node_address}: {e}")
+            else:
+                print(f"Node {node_address} is not ready. Skipping data broadcast to this node.")
 
         
+    def check_node_readiness(self, node_address):
+        status_url = urljoin(node_address, 'status')
+        try:
+            response = requests.get(status_url)
+            return response.status_code == 200  # Node is ready if status code is 200
+        except requests.exceptions.RequestException as e:
+            print(f"Error checking readiness of node {node_address}: {e}")
+            return False
+    
+            
     def check_balance(self):
         return self.wallet.calculate_balance(self.blockchain)

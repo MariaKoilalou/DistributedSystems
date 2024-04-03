@@ -2,6 +2,7 @@ import logging
 from threading import Thread, Event
 from flask.logging import default_handler
 from flask import Flask, request, jsonify
+import requests
 from block import Block
 from node import Node  # Assuming your Node class is inside a folder named 'network'
 from blockchain import Blockchain
@@ -101,7 +102,7 @@ def update_blockchain():
             return jsonify({'error': 'Failed to update blockchain'}), 500
     except Exception as e:
         logger.exception("Failed to update blockchain: %s", e)
-        return jsonify({'error': 'Internal server error'}), 500
+        return jsonify({'error': 'Internal server error'}), 505
 
 
 @app.route('/receive_data', methods=['POST'])
@@ -120,6 +121,40 @@ def trigger_broadcast():
     # Trigger the broadcast_all method on the bootstrap node
     node.broadcast_all()
     return jsonify({'message': 'Broadcast triggered successfully'}), 200
+
+@app.route('/broadcast_blockchain', methods=['POST'])
+def broadcast_blockchain():
+    node.broadcast_blockchain()
+    return jsonify({'message': 'Broadcast triggered successfully'}), 200
+
+@app.route('/status', methods=['GET'])
+def status():
+    # The current node's readiness logic
+    if is_node_ready():
+        return jsonify({'status': 'ready'}), 200
+    else:
+        return jsonify({'status': 'not ready'}), 503
+    
+def is_node_ready(self):
+    """
+    Check if this node is ready to accept HTTP requests by making a GET request to its readiness endpoint.
+    """
+    readiness_endpoint = '/status'
+    full_url = f"{self.base_url}{readiness_endpoint}"
+
+    try:
+        response = requests.get(full_url, timeout=5)  # Using a timeout to avoid hanging indefinitely
+        if response.status_code == 200:
+            # Assuming a 200 OK response indicates the node is ready
+            return True
+        else:
+            # Any other response code indicates the node is not ready
+            return False
+    except requests.exceptions.RequestException as e:
+        # If there's an error making the request (e.g., the node is down or unreachable)
+        print(f"Error checking readiness of this node at {self.base_url}: {e}")
+        return False
+
 
 if __name__ == '__main__':
     import argparse
