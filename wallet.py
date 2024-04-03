@@ -22,9 +22,18 @@ class Wallet:
                 if transaction['receiver_address'] == self.public_key:
                     balance += transaction['amount']
                 # Check if the wallet is the sender
-                if transaction['sender_address'] == self.public_key:
-                    balance -= transaction['amount']
+                if transaction['sender_address'] == self.public_key and transaction['receiver_address'] != 0:
+                    balance -= 1.03*transaction['amount'] + len(transaction['message'])
         return balance
+
+    def calculate_stakes(self, blockchain):
+            totstake = 0
+            for block in blockchain.chain:
+                for transaction in block.transactions:
+                    # Check if the wallet is the recipient
+                    if transaction['receiver_address'] == 0 and transaction['sender_address'] == self.public_key: 
+                        totstake += transaction['amount']
+            return totstake
 
     def sign_transaction(self, transaction):
         """
@@ -73,21 +82,3 @@ class Wallet:
         # transaction['signature'] = self.sign_transaction(transaction)
         # return transaction
     
-    # Add methods to update and get the wallet's balance as needed
-    def update_balance(self, amount):
-        """
-        Update the wallet's balance.
-        """
-        self.balance += amount
-
-    def get_balance(self):
-        """
-        Get the current balance of the wallet.
-        """
-        return self.balance
-
-    def show_balance(self):
-        """
-        Print the current balance of the wallet to the console.
-        """
-        print(f"Current Balance: {self.balance} BTC")

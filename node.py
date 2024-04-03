@@ -10,21 +10,19 @@ from threading import Lock
 blockchain_lock = Lock()
 
 class Node:
-    def __init__(self, host, port, blockchain, stake=0, is_bootstrap=False, nonce = 0, total_nodes=5):
+    def __init__(self, host, port, blockchain, is_bootstrap=False, nonce = 0, total_nodes=5):
         self.host = host
         self.port = port
-        self.stake_amount = stake  
         self.total_nodes = total_nodes
-        self.is_bootstrap = is_bootstrap
+        self.is_bootstrap = is_bootstrap   
         self.api_url = f'http://{host}:{port}/'
         self.blockchain = blockchain
         self.nonce = nonce
         self.wallet = self.generate_wallet()
         self.node_id = 0 if is_bootstrap else None
         self.stakes = {}  # Dictionary to store stakes of other nodes
-        self.balances = {}  # Dictionary to store balances of other nodes
+        #self.balances = {}  # Dictionary to store balances of other nodes
         self.nodes = {}
-        
         
         if is_bootstrap:
             self.next_node_id = 1
@@ -119,6 +117,7 @@ class Node:
         print(f"Node {assigned_node_id} registered with public key {public_key}.")
 
         self.transfer_bcc_to_new_node(public_key, 1000)
+       # self.blockchain.mint_block(self.wallet.public_key)  # Use bootstrap node's public key as the validator
 
         # blockchain_data = [block.to_dict() for block in self.blockchain.chain]
         # self.broadcast_blockchain(blockchain_data)
@@ -151,6 +150,11 @@ class Node:
 
         # Add the signed transaction to the transaction pool
         self.blockchain.add_transaction_to_pool(signed_transaction)
+
+        temptrans = Transaction(receiver_address, 0, "regular", 10, 1)
+        transss = temptrans.to_dict()
+        trans = self.wallet.sign_transaction(transss)
+        self.blockchain.add_transaction_to_pool(trans)
 
         # Mint a new block containing this transaction (PoS-specific logic may apply here)
         self.blockchain.mint_block(self.wallet.public_key)  # Use bootstrap node's public key as the validator
@@ -217,9 +221,11 @@ class Node:
         if amount < 0:
             return False, "Stake amount cannot be negative"
         temptrans = Transaction(self, self.wallet.address, 0, "coins", amount, 0)
-        self.broadcast_transaction(self,temptrans)
-        self.stake = amount
-        self.stakes[self.wallet.public_key] = amount  # Update the stake amount in the dictionary
+        transss = temptrans.to_dict()
+        trans = sign_transaction(transss)
+        self.broadcast_transaction(self,trans)
+        #self.stake = amount
+        #self.stakes[self.wallet.public_key] = amount  # Update the stake amount in the dictionary
         return True, "Stake amount set successfully"
 
     def validate_block(self, block):
@@ -243,15 +249,14 @@ class Node:
         """
         Validate the transaction by verifying the signature and checking the sender's wallet balance.
         """
-        sender_address = transaction.sender_address #edw den prepei na einai sender_address
+        sender_address = transaction.sender_address
         amount = transaction.amount
-
         # Verify the transaction signature
         if not transaction.verify_signature():
             return False, "Invalid signature"
 
         # Check if the sender has sufficient balance (considering staked amount)
-        if self.wallet.balance - self.stake < amount:
+        if self.calculate_other_balance(self.blockchain.chain, sender_address) - self.calculate_other_stakes(self.blockchain.chain, sender_address) < amount:
             return False, "Insufficient balance"
 
         return True, "Transaction validated successfully"
@@ -283,23 +288,6 @@ class Node:
         print("Block broadcasted to the network")
 
 
-    def update_balance(self, public_key, amount):
-        """
-        Update the balance of the account with the given public key.
-        """
-        self.wallet.update_balance(amount)
-        self.balances[public_key] = amount
-
-    def update_staking(self, public_key, staked_amount):
-        """
-        Update the staking amount for the node with the given public key.
-        """
-        self.staking_info[public_key] += staked_amount
-        # Deduct staked amount from available balance
-        self.wallet.deduct_balance(staked_amount)
-        self.stakes[public_key] = staked_amount
-
-
     def process_transaction(self, transaction):
         """
         Process the transaction and update the account balances and staking information accordingly.
@@ -307,24 +295,21 @@ class Node:
         sender_address = transaction.sender_address
         receiver_address = transaction.receiver_address
         amount = transaction.amount
-
-        # Calculate transaction fees based on the message length (1 BCC per character)
-        message_fee = len(transaction.message)  # Assuming 1 BCC per character
-
-        # Total fee charged for the transaction (including message fee)
-        total_fee = 0.03*amount + message_fee
-
-        if self.balances[sender_address] < amount + total_fee:
-            return False, "Insufficient balance"
-
-        # Update sender's balance (considering staked amount and fees)
-        self.update_balance(sender_address, self.balances[sender_address] - amount - total_fee)
-
-        # check if its a stake transaction or not
         if (receiver_address == 0):
-            self.update_staking(self, sender_address, amount)
+            self.stakes[self.get_node_id_by_public_key(sender_address)] = amount
+            #self.balances[get_node_id_by_public_key(sender_address)] -= amount
+        else:
+            message_fee = len(transaction.message)  # Assuming 1 BCC per character
 
-        self.update_balance(receiver_address, self.balances[receiver_address] + amount)
+            # Total fee charged for the transaction (including message fee)
+            total_fee = 0.03*amount + message_fee
+
+            if self.balances[self.get_node_id_by_public_key(sender_address)] < amount + total_fee:
+                return False, "Insufficient balance"
+
+            # Update sender's balance (considering staked amount and fees)
+            self.balances[self.get_node_id_by_public_key(sender_address)] -= amount + total_fee
+            self.balances[self.get_node_id_by_public_key(receiver_address)] += amount
 
         return True, "Transaction processed successfully"
 
@@ -470,6 +455,26 @@ class Node:
             except requests.exceptions.RequestException as e:
                 print(f"Error broadcasting blockchain to {node_address}: {e}")
 
+    def calculate_other_balance(self, blockchain, other_public_key):
+        balance = 0
+        for block in blockchain.chain:
+            for transaction in block.transactions:
+                # Check if the wallet is the recipient
+                if transaction['receiver_address'] == other_public_key:
+                    balance += transaction['amount']
+                # Check if the wallet is the sender
+                if transaction['sender_address'] == other_public_key and transaction['receiver_address'] != 0:
+                    balance -= 1.03*transaction['amount'] + len(transaction['message'])
+        return balance
+
+    def calculate_other_stakes(self, blockchain, other_public_key):
+        totstake = 0
+        for block in blockchain.chain:
+            for transaction in block.transactions:
+                # Check if the wallet is the recipient
+                if transaction['receiver_address'] == 0 and transaction['sender_address'] == other_public_key: 
+                    totstake += transaction['amount']
+        return totstake
         
     def check_balance(self):
         return self.wallet.calculate_balance(self.blockchain)

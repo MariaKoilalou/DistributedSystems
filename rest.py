@@ -63,7 +63,7 @@ def new_transaction():
     # Assume 'Transaction' class has a method to validate transactions
     new_transaction = Transaction(values)
     if new_transaction.is_valid():
-        blockchain.add_transaction(new_transaction)
+        blockchain.add_transaction_to_pool(new_transaction)
         return "Transaction added", 201
     else:
         return "Invalid transaction", 406
