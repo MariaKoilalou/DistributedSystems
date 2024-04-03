@@ -11,6 +11,8 @@ class Blockchain:
         self.chain = []
         self.transaction_pool = []
         self.stakes = {}
+        self.validatorHistory = {}
+        self.block_capacity = 2
     
     def add_transaction_to_pool(self, transaction):
         self.transaction_pool.append(transaction)
@@ -19,16 +21,30 @@ class Blockchain:
     
     def mint_block(self, validator):
         # Only create a new block if there are transactions in the pool
-        if len(self.transaction_pool) > 0:
+        if len(self.transaction_pool) >= self.block_capacity:
             previous_block = self.chain[-1]
-            previous_hash = previous_block.current_hash if previous_block else "0"
             new_block = Block(index=len(self.chain), transactions=self.transaction_pool, validator=validator, previous_hash=previous_block.current_hash)
             new_block.current_hash = new_block.calculate_hash()
             self.add_block(new_block)
-            self.transaction_pool = []  # Clear the transaction pool after adding to the block
+            self.validatorHistory[new_block.index] = validator
+            self.transaction_pool = self.transaction_pool[self.block_capacity:]  
             print("Block added to the chain")
         else:
-            print("No transactions to add")
+            print("Transaction pool not full")
+    
+    # def mint_block(self):
+    #     # Only create a new block if there are transactions in the pool
+    #     if len(self.transaction_pool) >= self.block_capacity:
+    #         previous_block = self.chain[-1]
+    #         currentValidator = self.PoS_Choose_Minter
+    #         new_block = Block(index=len(self.chain), transactions=self.transaction_pool, validator=currentValidator, previous_hash=previous_block.current_hash)
+    #         new_block.current_hash = new_block.calculate_hash()
+    #         self.add_block(new_block)
+    #         self.validatorHistory[new_block.index] = currentValidator
+    #         self.transaction_pool = []  # Clear the transaction pool after adding to the block CAREFUL MAYBE THERE WERE SOME MORE THAT DIDNT FIT?
+    #         print("Block added to the chain")
+    #     else:
+    #         print("Transaction pool not full")
 
     def add_block(self, block):
         """
@@ -48,7 +64,6 @@ class Blockchain:
         self.chain.append(block)
         print("New block added, current blockchain state:", self.chain)
         return "New block added", 200
-        #print(f"Block {block.index} added to the chain")
         
     def validate_chain(self):
         """
@@ -71,7 +86,7 @@ class Blockchain:
         return True
 
 
-    def PoS_Choose_Minter(self, block):
+    def PoS_Choose_Minter(self):
         """
         Validate the block by selecting a validator based on their stake.
         """
@@ -87,9 +102,9 @@ class Blockchain:
             if current >= stake_target:
                 validator = node_identifier
                 break
-
         return validator
     
+
     def get_last_block(self):
         """
         Retrieve the last block in the blockchain.
