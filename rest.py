@@ -2,14 +2,17 @@ import logging
 from threading import Thread, Event
 from flask.logging import default_handler
 from flask import Flask, request, jsonify
+import requests
 from block import Block
 from node import Node  # Assuming your Node class is inside a folder named 'network'
 from blockchain import Blockchain
 from transaction import Transaction
 from wallet import Wallet
 from uuid import uuid4
+import os 
 
 import cli 
+
 
 app = Flask(__name__)
 
@@ -37,25 +40,51 @@ def register():
         if not public_key or not node_address:
             return jsonify({'message': 'Missing public key or node address'}), 400
         
-        success, node_id = node.register_node(public_key, node_address)
+        
+        assigned_node_id = node.next_node_id
+        print(f"Current node: {assigned_node_id}")
+        
+        # Use public_key as the unique identifier for simplicity
+        if public_key in node.nodes:
+            print(f"Node with public key {public_key} is already registered.")
+            return False, None
+        
+        node.nodes[assigned_node_id] = {'public_key': public_key, 'address': node_address}
+        node.next_node_id += 1
+
+        print(f"Node {assigned_node_id} registered.")
+
+        node.transfer_bcc_to_new_node(public_key, 1000)
+
+        print(f"Total nodes: {node.total_nodes}")
+
         blockchain_data = [block.to_dict() for block in node.blockchain.chain]
 
-        # Use the register_node method from the Node class to add the new node
-        if success:
-            response = {
-                'message': 'New node registered successfully',
-                'node_id': node_id,  # Include the node ID in the response
-                'node_address': node_address,
-                'total_nodes': [node_info['address'] for node_info in node.nodes.values()],
-                'blockchain': blockchain_data
+        broadcast_blockchain()
+
+        if node.next_node_id == node.total_nodes:
+            node.broadcast_all()
+        
+        nodes_data = {
+            node_id: {
+                'address': node_info['address'],
+                'public_key': node_info['public_key']
             }
-            return jsonify(response), 200
-        else:
-            return jsonify({'message': 'Node registration failed'}), 500
+            for node_id, node_info in node.nodes.items()
+        }
+
+        response = {
+            'message': 'New node registered successfully',
+            'node_id': assigned_node_id,  # Include the node ID in the response
+            'node_address': node_address,
+            'total_nodes': [node_info['address'] for node_info in node.nodes.values()],
+            'blockchain': blockchain_data,
+            'nodes': nodes_data
+        }
+        return jsonify(response), 200
     except Exception as e:
         logger.exception("Failed to register node: %s", e)
         return jsonify({'error': 'Internal server error'}), 500    
-
 
 @app.route('/transactions/new', methods=['POST'])
 def new_transaction():
@@ -90,18 +119,31 @@ def consensus():
 @app.route('/update_blockchain', methods=['POST'])
 def update_blockchain():
     try:
-        data = request.get_json()
-
-        if not data:
+        incoming_chain = request.get_json()
+        if not incoming_chain:
             return jsonify({'error': 'Invalid data received'}), 400
 
-        if node.update_blockchain(data):
-            return jsonify({'message': 'Blockchain updated successfully'}), 200
+        current_chain_backup = node.blockchain.chain
+        node.blockchain.chain = [Block(**block_data) for block_data in incoming_chain]
+
+        if node.blockchain.validate_chain():
+            current_len = len(current_chain_backup)
+            incoming_len = len(node.blockchain.chain)
+
+            if incoming_len > current_len:
+                # Convert the blockchain into a format that can be JSON-serialized
+                updated_chain = [block.to_dict() for block in node.blockchain.chain]  # Assuming each Block has a `to_dict` method
+                return jsonify({'message': 'Blockchain updated successfully', 'new_chain': updated_chain}), 200
+            else:
+                node.blockchain.chain = current_chain_backup
+                return jsonify({'message': 'Received chain is not longer than the current chain'}), 200
         else:
-            return jsonify({'error': 'Failed to update blockchain'}), 500
+            node.blockchain.chain = current_chain_backup
+            return jsonify({'error': 'Received chain is invalid'}), 400
     except Exception as e:
-        logger.exception("Failed to update blockchain: %s", e)
-        return jsonify({'error': 'Internal server error'}), 505
+        # Assuming `logger` is defined and configured elsewhere in your code
+        logger.exception("Failed to update blockchain: %s", str(e))
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 @app.route('/receive_data', methods=['POST'])
@@ -114,16 +156,21 @@ def receive_nodes():
         logger.exception("Failed to receive node: %s", e)
         return jsonify({'error': 'Internal server error'}), 500
 
-
-@app.route('/trigger_broadcast', methods=['POST'])
-def trigger_broadcast():
-    # Trigger the broadcast_all method on the bootstrap node
-    node.broadcast_all()
-    return jsonify({'message': 'Broadcast triggered successfully'}), 200
-
 @app.route('/broadcast_blockchain', methods=['POST'])
 def broadcast_blockchain():
-    node.broadcast_blockchain()
+    node_addresses = [node_info["address"] for node_id, node_info in node.nodes.items()]
+    blockchain_data = [block.to_dict() for block in node.blockchain.chain]
+    for node_address in node_addresses:
+        if node_address == node.api_url:
+            continue
+        try:
+            response = requests.post(f"{node_address}/update_blockchain", json=blockchain_data)
+            if response.status_code == 200:
+                print(f"Successfully broadcasted blockchain to {node_address}.")
+            else:
+                print(f"Failed to broadcast blockchain to {node_address}. Status Code: {response.status_code}")
+        except requests.exceptions.RequestException as e:
+            print(f"Error broadcasting blockchain to {node_address}: {e}")
     return jsonify({'message': 'Broadcast triggered successfully'}), 200
 
 if __name__ == '__main__':

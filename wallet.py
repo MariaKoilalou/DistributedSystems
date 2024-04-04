@@ -34,7 +34,7 @@ class Wallet:
                     if transaction['receiver_address'] == 0 and transaction['sender_address'] == self.public_key: 
                         totstake += transaction['amount']
             return totstake
-
+    
     def sign_transaction(self, transaction):
         """
         Sign a transaction with the wallet's private key.
@@ -66,19 +66,4 @@ class Wallet:
         except (ValueError, TypeError):
             return False
 
-    # def create_signed_transaction(self, transaction):
-        """
-        Create a new transaction with the given details and sign it with the wallet's private key.
-        """
-        # Construct the transaction details
-        # transaction_details = {
-        #     'sender_address': self.address,  # Use the wallet's address as the sender
-        #     'recipient_address': recipient_address,
-        #     'amount': amount,
-        #     'message': message,
-        #     'nonce': nonce,
-        # }
-
-        # transaction['signature'] = self.sign_transaction(transaction)
-        # return transaction
     

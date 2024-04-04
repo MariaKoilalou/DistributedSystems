@@ -11,12 +11,24 @@ def run_cli(node_instance, blockchain_instance, shutdown_event):
             node_instance.view()
             print(f"{node_instance.nodes}")
         elif action.startswith('t '):
-            parts = action.split()
-            if len(parts) == 3:
-                _, recipient_address, amount = parts
-                node_instance.create_transaction(recipient_address, amount)
+            parts = action.split(' ', 2)  # Split the action into parts, but limit to 3 parts
+            if len(parts) >= 3:
+                _, recipient_address, content = parts
+                try:
+                    # Try to convert the content to a float, assuming it's an amount for a coin transfer
+                    amount = float(content)
+                    # Call the create_transaction method for transferring coins
+                    node_instance.create_transaction(recipient_address, amount, type_of_transaction="coin")
+                    print(f"Transferred {amount} BCC to {recipient_address}.")
+                except ValueError:
+                    # If conversion fails, treat the content as a message
+                    message = content
+                    message_cost = len(message) * 1  # Assuming 1 BCC per character
+                    # Call the create_transaction method for sending a message
+                    node_instance.create_transaction(recipient_address, message_cost, message, type_of_transaction="message")
+                    print(f"Sent message to {recipient_address} with cost {message_cost} BCC.")
             else:
-                print("Invalid command format. Expected: 't <recipient_address> <amount>'")
+                print("Invalid command format. Expected: 't <recipient_address> <amount/message>'")
         elif action.startswith('stake '):
             parts = action.split()
             if len(parts) == 2:
