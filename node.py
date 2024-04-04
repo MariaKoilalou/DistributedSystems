@@ -135,6 +135,11 @@ class Node:
         # Add the signed transaction to the transaction pool
         self.blockchain.add_transaction_to_pool(signed_transaction)
     
+        temptrans = Transaction(receiver_address, 0, "regular", 10, 1)
+        trans = self.wallet.sign_transaction(temptrans.to_dict())
+
+        self.blockchain.add_transaction_to_pool(trans)
+
         # Mint a new block containing this transaction (PoS-specific logic may apply here)
         self.blockchain.mint_block(self.wallet.public_key)  # Use bootstrap node's public key as the validator
 
@@ -201,8 +206,7 @@ class Node:
         self.broadcast_transaction(self,temptrans)
         self.stake = amount
         self.stakes[self.wallet.public_key] = amount  # Update the stake amount in the dictionary
-        transss = temptrans.to_dict()
-        trans = self.wallet.sign_transaction(transss)
+        trans = self.wallet.sign_transaction(temptrans.to_dict())
         self.broadcast_transaction(self,trans)
         #self.stake = amount
         #self.stakes[self.wallet.public_key] = amount  # Update the stake amount in the dictionary
@@ -341,7 +345,7 @@ class Node:
         else:
             print("Blockchain is empty or not synchronized.")
 
-    def create_transaction(self, recipient_address, amount):
+    def create_transaction(self, recipient_address, amount, message="", type_of_transaction="coin"):
         """
         Send a transaction to the recipient address with the specified amount.
         """
@@ -361,10 +365,12 @@ class Node:
             sender_address=self.wallet.public_key,
             receiver_address=recipient_address,
             amount=float(amount),
-            type_of_transaction="regular",  # Specify the transaction type here
-            message="Transaction message",
+            type_of_transaction=type_of_transaction,  # Specify the transaction type here
+            message=message,
             nonce=self.get_next_nonce()  # Assuming a method to manage nonce
         )
+
+        self.wallet.sign_transaction(transaction)
 
         # Validate the transaction
         is_valid, message = self.validate_transaction(transaction)
