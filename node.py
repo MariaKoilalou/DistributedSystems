@@ -1,12 +1,8 @@
-import time
-import json
 import requests
 from wallet import Wallet
-from blockchain import Blockchain
 from transaction import Transaction
 from block import Block
 from threading import Lock
-import os 
 
 blockchain_lock = Lock()
 
@@ -104,7 +100,9 @@ class Node:
             data = response.json()
             if 'node_address' in data:
                 self.update_blockchain(data['blockchain'])
-                self.nodes = data['nodes']
+                for node_id, node_info in data['nodes'].items():
+                    if node_id == '4':
+                        self.nodes = data['nodes']
                 print('Registered with the bootstrap node')
                 print('Local blockchain initialized with the received state from the bootstrap node')
             else:
@@ -233,11 +231,12 @@ class Node:
         """
         Validate the transaction by verifying the signature and checking the sender's wallet balance.
         """
-        sender_address = transaction.sender_address        
-        amount = transaction.amount
+        sender_address = transaction['sender_address']     
+        signature = transaction['signature']  
+        amount = transaction['amount']
 
         # Verify the transaction signature
-        if not transaction.verify_signature():
+        if not self.wallet.verify_signature(transaction, signature, sender_address):
             return False, "Invalid signature"
 
         if self.calculate_other_balance(self.blockchain.chain, sender_address) - self.calculate_other_stakes(self.blockchain.chain, sender_address) < amount:
@@ -345,10 +344,12 @@ class Node:
         else:
             print("Blockchain is empty or not synchronized.")
 
+
     def create_transaction(self, recipient_address, amount, message="", type_of_transaction="coin"):
         """
         Send a transaction to the recipient address with the specified amount.
         """
+
         # Validate recipient address and amount (you may need additional validation logic here)
         if not recipient_address:
             print("Recipient address is required.")
@@ -360,17 +361,24 @@ class Node:
             print("Invalid amount. Please enter a numeric value.")
             return
 
+        # Find the recipient's public key using the recipient_address
+        recipient_public_key = None
+        for node_id, node_info in self.nodes.items():
+            if node_info['address'] == recipient_address:
+                recipient_public_key = node_info['public_key']
+                break
+
         # Create a transaction object
         transaction = Transaction(
             sender_address=self.wallet.public_key,
-            receiver_address=recipient_address,
+            receiver_address=recipient_public_key,
             amount=float(amount),
             type_of_transaction=type_of_transaction,  # Specify the transaction type here
             message=message,
             nonce=self.get_next_nonce()  # Assuming a method to manage nonce
         )
 
-        self.wallet.sign_transaction(transaction)
+        transaction = self.wallet.sign_transaction(transaction.to_dict())
 
         # Validate the transaction
         is_valid, message = self.validate_transaction(transaction)

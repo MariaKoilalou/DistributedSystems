@@ -7,7 +7,6 @@ from block import Block
 from node import Node  # Assuming your Node class is inside a folder named 'network'
 from blockchain import Blockchain
 from transaction import Transaction
-from wallet import Wallet
 from uuid import uuid4
 import os 
 

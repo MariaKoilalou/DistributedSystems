@@ -45,12 +45,3 @@ class Transaction:
             'signature': self.signature
         }
     
-
-    def verify_signature(self):
-        """
-        Verify the signature of the transaction using the provided public key.
-        """
-        verifier = pkcs1_15.new(RSA.import_key(self.sender_address))
-        transaction_data = json.dumps(self.to_dict(), sort_keys=True).encode()
-        transaction_hash = SHA256.new(transaction_data)
-        return verifier.verify(transaction_hash, self.signature)

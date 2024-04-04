@@ -45,11 +45,9 @@ class Wallet:
         private_key = RSA.import_key(self.private_key)
         signer = pkcs1_15.new(private_key)
         signature = signer.sign(transaction_hash)
-        
         transaction['signature'] = base64.b64encode(signature).decode('utf-8')
         return transaction
-        # Return the signature in Base64 to ensure it's easily transmittable
-        # return base64.b64encode(signature).decode('utf-8')
+
 
     def verify_signature(self, transaction, signature, sender_public_key):
         """
