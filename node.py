@@ -119,12 +119,11 @@ class Node:
 
         sender_address = self.wallet.public_key  
         receiver_address = recipient_public_key  
-        amount = amount  
-        message = "Welcome to the network!"  
+        amount = amount    
         nonce = self.get_next_nonce()  
 
         # Create a Transaction object with extracted fields
-        transaction = Transaction(sender_address, receiver_address, "regular", amount, message, nonce)
+        transaction = Transaction(sender_address, receiver_address, "Welcome!", amount, "", nonce)
            
         transaction = transaction.to_dict()
 
@@ -133,7 +132,7 @@ class Node:
         # Add the signed transaction to the transaction pool
         self.blockchain.add_transaction_to_pool(signed_transaction)
     
-        temptrans = Transaction(receiver_address, 0, "regular", 10, 1)
+        temptrans = Transaction(receiver_address, 0, "Welcome!", 10, "", 1)
         trans = self.wallet.sign_transaction(temptrans.to_dict())
 
         self.blockchain.add_transaction_to_pool(trans)
@@ -141,27 +140,6 @@ class Node:
         # Mint a new block containing this transaction (PoS-specific logic may apply here)
         self.blockchain.mint_block(self.wallet.public_key)  # Use bootstrap node's public key as the validator
 
-    def process_bootstrap_transaction(self, transaction):
-
-        sender_address = transaction['sender_address']
-        receiver_address = transaction['receiver_address']
-        amount = transaction['amount']
-
-        # Find node IDs by public keys
-        sender_id = self.get_node_id_by_public_key(sender_address)
-        receiver_id = self.get_node_id_by_public_key(receiver_address)
-
-        if self.balances[sender_id] < amount:
-            return False, "Insufficient balance"
-        
-        # Update sender's balance (considering staked amount and fees)
-        self.update_balance(sender_id, self.balances[sender_id] - amount)
-
-        self.update_balance(receiver_id, self.balances[receiver_id] + amount)
-        self.balances[receiver_id] += amount
-        self.balances[sender_id] -= amount
-
-        return True, "Transaction processed successfully"
 
     def get_node_id_by_public_key(self, public_key):
         # print("Searching for public_key:", public_key)
@@ -239,10 +217,19 @@ class Node:
         if not self.wallet.verify_signature(transaction, signature, sender_address):
             return False, "Invalid signature"
 
-        if self.calculate_other_balance(self.blockchain.chain, sender_address) - self.calculate_other_stakes(self.blockchain.chain, sender_address) < amount:
-            return False, "Insufficient balance"
-        
-        return True, "Transaction validated successfully"
+        if transaction['type_of_transaction'] == "coin":
+            if self.calculate_balance(self.blockchain.chain, sender_address) - self.calculate_stakes(self.blockchain.chain, sender_address) < 1.03*amount:
+                return False, "Insufficient balance"
+            return True, "Transaction validated successfully"
+        elif transaction['type_of_transaction'] == "message":
+            if len(transaction['massege']) < 1.03*amount:
+                return False, "Insufficient balance"
+            return True, "Transaction validated successfully"
+        elif transaction['type_of_transaction'] == "Welcome to the network!":
+            return True, "Bootstrap Transaction"
+        else:
+            return False, "Unknown Transaction type"
+
 
     def broadcast_transaction(self, transaction):
         for node_url in self.nodes.values():
@@ -384,32 +371,38 @@ class Node:
         is_valid, message = self.validate_transaction(transaction)
         if not is_valid:
             print(f"Transaction validation failed: {message}")
-            return
+            return False
+        else: 
+            # Broadcast the transaction to the network
+            self.broadcast_transaction(transaction)
+            print("Transaction sent successfully.")
 
-        # Broadcast the transaction to the network
-        self.broadcast_transaction(transaction)
-        print("Transaction sent successfully.")
 
-    def calculate_other_balance(self, blockchain, other_public_key):
+    def calculate_balance(self, blockchain, public_key):
         balance = 0
         for block in blockchain.chain:
             for transaction in block.transactions:
                 # Check if the wallet is the recipient
-                if transaction['receiver_address'] == other_public_key:
+                if transaction['receiver_address'] == public_key:
                     balance += transaction['amount']
                 # Check if the wallet is the sender
-                if transaction['sender_address'] == other_public_key and transaction['receiver_address'] != 0:
-                    balance -= 1.03*transaction['amount'] + len(transaction['message'])
+                if transaction['sender_address'] == public_key and transaction['receiver_address'] != 0:
+                    if transaction['type_of_transaction'] == "Welcome!":
+                        balance = transaction['amount']
+                    elif transaction['type_of_transaction'] == "coin":
+                        balance -= 1.03*transaction['amount'] 
+                    else:    
+                        balance -= len(transaction['message'])
+                
         return balance
 
-    def calculate_other_stakes(self, blockchain, other_public_key):
+    def calculate_stakes(self, blockchain, public_key):
         totstake = 0
         for block in blockchain.chain:
             for transaction in block.transactions:
                 # Check if the wallet is the recipient
-                if transaction['receiver_address'] == 0 and transaction['sender_address'] == other_public_key: 
+                if transaction['receiver_address'] == 0 and transaction['sender_address'] == public_key: 
                     totstake += transaction['amount']
         return totstake
+    
         
-    def check_balance(self):
-        return self.wallet.calculate_balance(self.blockchain)

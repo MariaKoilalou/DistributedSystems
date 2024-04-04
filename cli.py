@@ -1,11 +1,11 @@
-def run_cli(node_instance, blockchain_instance, shutdown_event):
+def run_cli(node_instance, shutdown_event):
     print("\nWelcome! Use help to see the available commands.")
 
     while not shutdown_event.is_set():
         action = input()
         print("\n")
         if action == 'balance':
-            my_balance = node_instance.check_balance()
+            my_balance = node_instance.calculate_balance(node_instance.blockchain, node_instance.wallet.public_key)
             print(f"Balance= {my_balance}")
         elif action == 'view':
             node_instance.view()
@@ -18,15 +18,20 @@ def run_cli(node_instance, blockchain_instance, shutdown_event):
                     # Try to convert the content to a float, assuming it's an amount for a coin transfer
                     amount = float(content)
                     # Call the create_transaction method for transferring coins
-                    node_instance.create_transaction(recipient_address, amount, type_of_transaction="coin")
-                    print(f"Transferred {amount} BCC to {recipient_address}.")
+                    if node_instance.create_transaction(recipient_address, amount, type_of_transaction="coin"):
+                        print(f"Transferred {amount} BCC to {recipient_address}.")
+                    else:
+                        print(f"Transferred failed.")
                 except ValueError:
                     # If conversion fails, treat the content as a message
                     message = content
-                    message_cost = len(message) * 1  # Assuming 1 BCC per character
+                    message_cost = 0  
                     # Call the create_transaction method for sending a message
-                    node_instance.create_transaction(recipient_address, message_cost, message, type_of_transaction="message")
-                    print(f"Sent message to {recipient_address} with cost {message_cost} BCC.")
+                    if node_instance.create_transaction(recipient_address, message_cost, message, type_of_transaction="message"):
+                        print(f"Sent message to {recipient_address}")
+                    else:
+                        print("Transferred failed.")
+
             else:
                 print("Invalid command format. Expected: 't <recipient_address> <amount/message>'")
         elif action.startswith('stake '):

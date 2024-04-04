@@ -13,27 +13,6 @@ class Wallet:
         self.public_key = base64.b64encode(rsaKeys.publickey().export_key()).decode('utf-8')  # Convert bytes to Base64 string for easier transmission and storage
         self.address = self.public_key  # In a real application, you might use a more user-friendly address format
         self.balance = 0  # Initially, the wallet's balance is 0
-
-    def calculate_balance(self, blockchain):
-        balance = 0
-        for block in blockchain.chain:
-            for transaction in block.transactions:
-                # Check if the wallet is the recipient
-                if transaction['receiver_address'] == self.public_key:
-                    balance += transaction['amount']
-                # Check if the wallet is the sender
-                if transaction['sender_address'] == self.public_key and transaction['receiver_address'] != 0:
-                    balance -= 1.03*transaction['amount'] + len(transaction['message'])
-        return balance
-
-    def calculate_stakes(self, blockchain):
-            totstake = 0
-            for block in blockchain.chain:
-                for transaction in block.transactions:
-                    # Check if the wallet is the recipient
-                    if transaction['receiver_address'] == 0 and transaction['sender_address'] == self.public_key: 
-                        totstake += transaction['amount']
-            return totstake
     
     def sign_transaction(self, transaction):
         """

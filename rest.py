@@ -195,11 +195,9 @@ if __name__ == '__main__':
         else:
             print("Failed to register with the bootstrap node.")
 
-    balance = node.check_balance()
-    print(f"node balance: {balance} BCC")
 
     # CLI Thread
-    cli_thread = Thread(target=cli.run_cli, args=(node, blockchain, shutdown_event))
+    cli_thread = Thread(target=cli.run_cli, args=(node, shutdown_event))
     cli_thread.start()
 
     try:
