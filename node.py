@@ -204,7 +204,8 @@ class Node:
             return False, "Invalid previous hash"
 
         return True, "Block validated successfully"
-
+    
+        
     def validate_transaction(self, transaction):
         """
         Validate the transaction by verifying the signature and checking the sender's wallet balance.
@@ -212,7 +213,7 @@ class Node:
         sender_address = transaction['sender_address']     
         signature = transaction['signature']  
         amount = transaction['amount']
-
+        
         # Verify the transaction signature
         if not self.wallet.verify_signature(transaction, signature, sender_address):
             return False, "Invalid signature"

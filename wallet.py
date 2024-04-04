@@ -7,13 +7,12 @@ from Crypto.Hash import SHA256
 
 class Wallet:
     def __init__(self):
-        key_length = 1024  # You might consider using a larger key size for better security, e.g., 2048
+        key_length = 1024  
         rsaKeys = RSA.generate(key_length)
-        self.private_key = rsaKeys.export_key().decode('utf-8')  # Convert bytes to string for easier handling
-        self.public_key = base64.b64encode(rsaKeys.publickey().export_key()).decode('utf-8')  # Convert bytes to Base64 string for easier transmission and storage
-        self.address = self.public_key  # In a real application, you might use a more user-friendly address format
-        self.balance = 0  # Initially, the wallet's balance is 0
-    
+        self.private_key = rsaKeys.export_key().decode('utf-8') 
+        self.public_key = base64.b64encode(rsaKeys.publickey().export_key()).decode('utf-8')  
+        self.address = self.public_key  
+        self.balance = 0 
     def sign_transaction(self, transaction):
         """
         Sign a transaction with the wallet's private key.
@@ -36,7 +35,9 @@ class Wallet:
         transaction_bytes = transaction_string.encode('utf-8')
         transaction_hash = SHA256.new(transaction_bytes)
         sender_public_key = RSA.import_key(base64.b64decode(sender_public_key))
-        signature = base64.b64decode(signature)
+        # signature = base64.b64decode(signature)
+        print(f"{transaction_hash}")
+        print(f"{signature}")
         try:
             pkcs1_15.new(sender_public_key).verify(transaction_hash, signature)
             return True
