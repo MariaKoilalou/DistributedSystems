@@ -10,8 +10,7 @@ class Blockchain:
     def __init__(self):
         self.chain = []
         self.transaction_pool = []
-        self.stakes = {}
-        self.validatorHistory = {}
+        self.stakes = {} 
         self.block_capacity = 2
     
     def add_transaction_to_pool(self, transaction):
@@ -19,32 +18,17 @@ class Blockchain:
         print('Transaction added to pool')
         return
     
-    def mint_block(self, validator):
+    def mint_bootstrap_block(self, validator):
         # Only create a new block if there are transactions in the pool
         if len(self.transaction_pool) >= self.block_capacity:
             previous_block = self.chain[-1]
             new_block = Block(index=len(self.chain), transactions=self.transaction_pool, validator=validator, previous_hash=previous_block.current_hash)
             new_block.current_hash = new_block.calculate_hash()
             self.add_block(new_block)
-            self.validatorHistory[new_block.index] = validator
             self.transaction_pool = self.transaction_pool[self.block_capacity:]  
             print("Block added to the chain")
         else:
             print("Transaction pool not full")
-    
-    # def mint_block(self):
-    #     # Only create a new block if there are transactions in the pool
-    #     if len(self.transaction_pool) >= self.block_capacity:
-    #         previous_block = self.chain[-1]
-    #         currentValidator = self.PoS_Choose_Minter
-    #         new_block = Block(index=len(self.chain), transactions=self.transaction_pool, validator=currentValidator, previous_hash=previous_block.current_hash)
-    #         new_block.current_hash = new_block.calculate_hash()
-    #         self.add_block(new_block)
-    #         self.validatorHistory[new_block.index] = currentValidator
-    #         self.transaction_pool = []  # Clear the transaction pool after adding to the block CAREFUL MAYBE THERE WERE SOME MORE THAT DIDNT FIT?
-    #         print("Block added to the chain")
-    #     else:
-    #         print("Transaction pool not full")
 
     def add_block(self, block):
         """
@@ -86,23 +70,6 @@ class Blockchain:
         return True
 
 
-    def PoS_Choose_Minter(self):
-        """
-        Validate the block by selecting a validator based on their stake.
-        """
-
-        total_stakes = sum(self.stakes.values())
-        if total_stakes == 0:
-            return False 
-
-        stake_target = random.uniform(0, total_stakes)
-        current = 0
-        for node_identifier, stake_amount in self.stakes.items():
-            current += stake_amount
-            if current >= stake_target:
-                validator = node_identifier
-                break
-        return validator
     
 
     def get_last_block(self):

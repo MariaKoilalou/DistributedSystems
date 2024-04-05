@@ -47,21 +47,6 @@ class Transaction:
         })
         return hashlib.sha256(transaction_details.encode('utf-8'))
 
-    # def to_dict(self):
-    #     """
-    #     Convert the transaction details into a dictionary for easier processing and transmission.
-    #     """
-    #     return {
-    #         'sender_address': self.sender_address,
-    #         'receiver_address': self.receiver_address,
-    #         'type_of_transaction': self.type_of_transaction,
-    #         'amount': self.amount,
-    #         'message': self.message,
-    #         'nonce': self.nonce,
-    #         'transaction_id': self.transaction_id,
-    #         'signature': self.signature
-    #     }
-
     def to_dict(self):
         
         return {

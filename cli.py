@@ -6,7 +6,11 @@ def run_cli(node_instance, shutdown_event):
         print("\n")
         if action == 'balance':
             my_balance = node_instance.calculate_balance(node_instance.blockchain.chain, node_instance.wallet.public_key)
+            my_stakes = node_instance.calculate_stakes(node_instance.blockchain.chain, node_instance.wallet.public_key)
+
             print(f"Balance= {my_balance}")
+            print(f"Staked amount= {my_stakes}")
+
         elif action == 'view':
             node_instance.view()
             print(f"{node_instance.nodes}")

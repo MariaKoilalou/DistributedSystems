@@ -94,9 +94,35 @@ def register():
 def new_transaction():
     values = request.get_json()
     # Assume 'Transaction' class has a method to validate transactions
-    new_transaction = Transaction(values)
-    blockchain.add_transaction_to_pool(new_transaction)
-   
+    new_transaction = Transaction(
+                sender_address=values['sender_address'],
+                receiver_address=values['receiver_address'],
+                type_of_transaction=values['type_of_transaction'],
+                amount=values['amount'],  
+                message=values['message'],
+                nonce=values['nonce'],
+            )
+    new_transaction.signature = values['signature']
+    if node.validate_transaction(new_transaction):
+        blockchain.add_transaction_to_pool(new_transaction)
+        node.mint_block()
+        return jsonify({'error': 'Transaction broadcasted'}), 200
+    else:
+        return jsonify({'error': 'Invalid transaction'}), 400
+    
+@app.route('/receive_block', methods=['POST'])
+def new_block():
+    values = request.get_json()
+    # Assume 'Transaction' class has a method to validate transactions
+    new_block = Block(index=values['index'], transactions=values['transactions'], validator=values['validator'], previous_hash=values['previous_hash'])
+    new_block.current_hash = new_block.calculate_hash()
+    node.add_block(new_block)
+    if node.validate_block(new_block):
+        blockchain.add_block(new_block)
+        return jsonify({'error': 'Block broadcasted'}), 200
+    else:
+        return jsonify({'error': 'Invalid block'}), 400
+    
 @app.route('/blockchain', methods=['GET'])
 def get_full_chain():
     chain_data = [block.to_dict() for block in node.blockchain.chain]  # Convert each block to a dictionary
@@ -204,6 +230,7 @@ if __name__ == '__main__':
             print("Registration with the bootstrap node was successful.")
         else:
             print("Failed to register with the bootstrap node.")
+        print(f"Total stakes are {node.calculate_stakes(node.blockchain.chain, node.wallet.public_key)}")
 
 
     # CLI Thread

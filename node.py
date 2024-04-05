@@ -1,8 +1,11 @@
+import hashlib
 import requests
 from wallet import Wallet
 from transaction import Transaction
 from block import Block
 from threading import Lock
+import random
+import numpy
 
 blockchain_lock = Lock()
 
@@ -40,6 +43,7 @@ class Node:
 
     def initialize_genesis_block(self):
         total_nodes = self.total_nodes
+
         if len(self.blockchain.chain) == 0:
             genesis_transaction = Transaction(
                 sender_address="0",
@@ -134,7 +138,7 @@ class Node:
         self.blockchain.add_transaction_to_pool(temptrans)
 
         # Mint a new block containing this transaction (PoS-specific logic may apply here)
-        self.blockchain.mint_block(self.wallet.public_key)  # Use bootstrap node's public key as the validator
+        self.blockchain.mint_bootstrap_block(self.wallet.public_key)  # Use bootstrap node's public key as the validator
 
 
     def get_node_id_by_public_key(self, public_key):
@@ -192,23 +196,41 @@ class Node:
         """
         if amount < 0:
             return False, "Stake amount cannot be negative"
-        temptrans = Transaction(self, self.wallet.address, 0, "coins", amount, 0)
+        
+        temptrans = Transaction(self.wallet.public_key, "stake", 0, "coins", amount,"",1)
         temptrans.sign_transaction(self.wallet.private_key)
         self.broadcast_transaction(temptrans)
-        self.stake = amount
-        self.stakes[self.wallet.public_key] = amount  # Update the stake amount in the dictionary
-        self.broadcast_transaction(temptrans)
-        #self.stake = amount
-        #self.stakes[self.wallet.public_key] = amount  # Update the stake amount in the dictionary
         return True, "Stake amount set successfully"
     
+    def PoS_Choose_Minter(self,seed):
+
+        seed_hash = hashlib.sha256(seed.encode()).hexdigest()
+        seed_int = int(seed_hash, 16)
+
+        total_stakes = 0
+        for node_id, node_info in self.nodes.items():
+            total_stakes+= self.calculate_stakes(self.blockchain.chain, node_info['public_key'])
+        rng = numpy.random.default_rng(seed_int)
+        if total_stakes == 0:
+            return False 
+
+        stake_target = rng.uniform(0, total_stakes)
+        current = 0
+
+        for node_id, node_info in self.nodes.items():
+            current += self.calculate_stakes(self.blockchain.chain, node_info['public_key'])
+            if current >= stake_target:
+                validator = node_info['public_key']
+                break
+        return validator
+
     def validate_block(self, block):
         """
         Validate a block by checking the validator and previous hash.
         """
         # Check if the validator matches the stakeholder
-        if block.validator != self.blockchain.validatorHistory[block.index]:
-            return False, "Invalid validator"
+        if block.validator != self.PoS_Choose_Minter(block.previous_hash):
+            return False, "Block Validator does not match the result of the pseudo-random generator"
 
         # Retrieve the previous block from the blockchain
         previous_block = self.blockchain.chain[-1]
@@ -219,14 +241,14 @@ class Node:
 
         return True, "Block validated successfully"
     
-        
+
     def validate_transaction(self, transaction):
         """
         Validate the transaction by verifying the signature and checking the sender's wallet balance.
         """
         sender_address = transaction.sender_address    
         amount = transaction.amount
-        
+
         # Verify the transaction signature
         if not transaction.verify_signature():
             return False, "Invalid signature"
@@ -236,7 +258,7 @@ class Node:
                 return False, "Insufficient balance"
             return True, "Transaction validated successfully"
         elif transaction.type_of_transaction == "message":
-            if len(transaction.massege) < 1.03*amount:
+            if self.calculate_balance(self.blockchain.chain, sender_address) - self.calculate_stakes(self.blockchain.chain, sender_address) < len(transaction.message):
                 return False, "Insufficient balance"
             return True, "Transaction validated successfully"
         elif transaction.type_of_transaction == "Welcome to the network!":
@@ -251,6 +273,12 @@ class Node:
             requests.post(node_url + '/transactions/new', json=transaction.to_dict())
         print('Transaction broadcasted to the network')
 
+    def broadcast_block(self, block):
+        for node_id, node_info in self.nodes.items():
+            node_url = node_info['address'] 
+            requests.post(node_url + '/receive_block', json=block.to_dict())
+        print('Block broadcasted to the network')
+
     def validate_chain(self, chain):
         """
         Validate the received blockchain by validating each block in it.
@@ -262,41 +290,15 @@ class Node:
 
         return True, "Blockchain validation successful"
 
-    def broadcast_block(self, block):
-        """
-        Broadcast the validated block to all other nodes in the network.
-        """
-        for node_url in self.nodes.values():
-            # Assuming each node has an API endpoint to receive new blocks
-            requests.post(f"{node_url}/receive_block", json=block.to_dict())
+    # def broadcast_block(self, block):
+    #     """
+    #     Broadcast the validated block to all other nodes in the network.
+    #     """
+    #     for node_url in self.nodes.values():
+    #         # Assuming each node has an API endpoint to receive new blocks
+    #         requests.post(f"{node_url}/receive_block", json=block.to_dict())
 
-        print("Block broadcasted to the network")
-
-
-    def process_transaction(self, transaction):
-        """
-        Process the transaction and update the account balances and staking information accordingly.
-        """
-        sender_address = transaction.sender_address
-        receiver_address = transaction.receiver_address
-        amount = transaction.amount
-
-        if (receiver_address == 0):
-            self.stakes[self.get_node_id_by_public_key(sender_address)] = amount
-            #self.balances[get_node_id_by_public_key(sender_address)] -= amount
-        else:
-            message_fee = len(transaction.message)  # Assuming 1 BCC per character
-
-        total_fee = 0.03*amount + message_fee
-
-        if self.balances[self.get_node_id_by_public_key(sender_address)] < amount + total_fee:
-            return False, "Insufficient balance"
-
-         # Update sender's balance (considering staked amount and fees)
-        self.balances[self.get_node_id_by_public_key(sender_address)] -= amount + total_fee
-        self.balances[self.get_node_id_by_public_key(receiver_address)] += amount
-        
-        return True, "Transaction processed successfully"
+    #     print("Block broadcasted to the network")
 
     def broadcast_all(self):
         # Data to be broadcasted: IP address, port, and public keys of all nodes
@@ -391,6 +393,29 @@ class Node:
             # Broadcast the transaction to the network
             self.broadcast_transaction(transaction)
             print("Transaction sent successfully.")
+            return True
+
+
+    def mint_block(self):
+        currentValidator = self.PoS_Choose_Minter(self.blockchain.chain[-1].current_hash)
+        if self.wallet.public_key == currentValidator:
+            # Only create a new block if there are transactions in the pool
+            if len(self.blockchain.transaction_pool) >= self.blockchain.block_capacity:
+                previous_block = self.blockchain.chain[-1]
+                new_block = Block(index=len(self.chain), transactions=self.blockchain.transaction_pool, validator=currentValidator, previous_hash=previous_block.current_hash)
+                new_block.current_hash = new_block.calculate_hash()
+                if self.blockchain.add_block(new_block):
+                    print("Block added")
+                else:
+                    print("Block not added")
+                if self.broadcast_block(new_block):
+                    print("Block broadcasted")
+                else:
+                    print("Block didnt broadcast")
+                    self.blockchain.transaction_pool = self.blockchain.transaction_pool[self.blockchain.block_capacity:]  
+                print("Block added to the chain")
+            else:
+                print("Transaction pool not full")
 
 
     def calculate_balance(self, blockchain, public_key):
