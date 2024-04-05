@@ -229,8 +229,8 @@ class Node:
         Validate a block by checking the validator and previous hash.
         """
         # # Check if the validator matches the stakeholder
-        # if block.validator != self.PoS_Choose_Minter(block.previous_hash):
-        #     return False, "Block Validator does not match the result of the pseudo-random generator"
+        if block.validator != self.PoS_Choose_Minter(block.previous_hash):
+            return False, "Block Validator does not match the result of the pseudo-random generator"
 
         # Retrieve the previous block from the blockchain
         previous_block = self.blockchain.chain[-1]
