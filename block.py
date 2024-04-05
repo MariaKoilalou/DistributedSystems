@@ -17,7 +17,7 @@ class Block:
         block_data = {
             'index': self.index,
             'timestamp': self.timestamp,
-            'transactions': self.transactions,
+            'transactions': [tx.to_dict() if hasattr(tx, 'to_dict') else tx for tx in self.transactions],            
             'validator': self.validator,
             'previous_hash': self.previous_hash
         }

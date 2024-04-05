@@ -57,7 +57,12 @@ def register():
 
         print(f"Total nodes: {node.total_nodes}")
 
-        blockchain_data = [block.to_dict() for block in node.blockchain.chain]
+        blockchain_data = []
+        for block in node.blockchain.chain:
+            block_dict = block.to_dict()  # Assuming Block has a to_dict method
+            block_dict['transactions'] = [tx.to_dict() if hasattr(tx, 'to_dict') else tx for tx in block.transactions]
+            blockchain_data.append(block_dict)
+
 
         broadcast_blockchain()
 
@@ -90,13 +95,8 @@ def new_transaction():
     values = request.get_json()
     # Assume 'Transaction' class has a method to validate transactions
     new_transaction = Transaction(values)
-    if new_transaction.is_valid():
-        blockchain.add_transaction_to_pool(new_transaction)
-        return "Transaction added", 201
-    else:
-        return "Invalid transaction", 406
-    
-
+    blockchain.add_transaction_to_pool(new_transaction)
+   
 @app.route('/blockchain', methods=['GET'])
 def get_full_chain():
     chain_data = [block.to_dict() for block in node.blockchain.chain]  # Convert each block to a dictionary
@@ -158,11 +158,20 @@ def receive_nodes():
 @app.route('/broadcast_blockchain', methods=['POST'])
 def broadcast_blockchain():
     node_addresses = [node_info["address"] for node_id, node_info in node.nodes.items()]
-    blockchain_data = [block.to_dict() for block in node.blockchain.chain]
+    
+    # Convert each block to a dictionary, including converting each transaction to a dictionary
+    blockchain_data = []
+    for block in node.blockchain.chain:
+        block_dict = block.to_dict()  # Assuming Block has a to_dict method
+        # Check if each transaction is a dict or needs conversion
+        block_dict['transactions'] = [tx if isinstance(tx, dict) else tx.to_dict() for tx in block.transactions]
+        blockchain_data.append(block_dict)
+
     for node_address in node_addresses:
-        if node_address == node.api_url:
+        if node_address == node.api_url:  # Skip broadcasting to self
             continue
         try:
+            # Send the serialized blockchain data
             response = requests.post(f"{node_address}/update_blockchain", json=blockchain_data)
             if response.status_code == 200:
                 print(f"Successfully broadcasted blockchain to {node_address}.")
@@ -170,7 +179,8 @@ def broadcast_blockchain():
                 print(f"Failed to broadcast blockchain to {node_address}. Status Code: {response.status_code}")
         except requests.exceptions.RequestException as e:
             print(f"Error broadcasting blockchain to {node_address}: {e}")
-    return jsonify({'message': 'Broadcast triggered successfully'}), 200
+
+
 
 if __name__ == '__main__':
     import argparse

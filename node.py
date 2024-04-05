@@ -49,9 +49,7 @@ class Node:
                 nonce=0,
                 message="Genesis Block"
             )
-            # Use the wallet's sign_transaction method
-            signature = self.wallet.sign_transaction(genesis_transaction.to_dict())
-            genesis_transaction.signature = signature  # Directly set the signature attribute
+            genesis_transaction.sign_transaction(self.wallet.private_key)
             genesis_block = Block(
                 index=0,
                 transactions=[genesis_transaction.to_dict()],
@@ -125,17 +123,15 @@ class Node:
         # Create a Transaction object with extracted fields
         transaction = Transaction(sender_address, receiver_address, "Welcome!", amount, "", nonce)
            
-        transaction = transaction.to_dict()
-
-        signed_transaction = self.wallet.sign_transaction(transaction)
-
+        transaction.sign_transaction(self.wallet.private_key)
         # Add the signed transaction to the transaction pool
-        self.blockchain.add_transaction_to_pool(signed_transaction)
+        self.blockchain.add_transaction_to_pool(transaction)
     
         temptrans = Transaction(receiver_address, 0, "Welcome!", 10, "", 1)
-        trans = self.wallet.sign_transaction(temptrans.to_dict())
 
-        self.blockchain.add_transaction_to_pool(trans)
+        temptrans.sign_transaction(self.wallet.private_key)
+
+        self.blockchain.add_transaction_to_pool(temptrans)
 
         # Mint a new block containing this transaction (PoS-specific logic may apply here)
         self.blockchain.mint_block(self.wallet.public_key)  # Use bootstrap node's public key as the validator
@@ -158,14 +154,32 @@ class Node:
         max_nonce = 0
         for block in self.blockchain.chain:
             for transaction in block.transactions:
-                if transaction['sender_address'] == self.wallet.address:
-                    max_nonce = max(max_nonce, transaction['nonce'])
+
+                if isinstance(transaction, Transaction):
+                    sender_address = transaction.sender_address
+                    if sender_address == self.wallet.address:
+                        max_nonce = max(max_nonce, transaction.nonce)
+                elif isinstance(transaction, dict):
+                    sender_address = transaction['sender_address']
+                    if sender_address == self.wallet.address:
+                        max_nonce = max(max_nonce, transaction['nonce'])
+                else:
+                    raise TypeError("Unexpected transaction type")
 
         # Also consider transactions in the transaction pool
         for transaction in self.blockchain.transaction_pool:
-            # Update max_nonce based on transactions by the sender
-            if transaction['sender_address'] == self.wallet.address:
-                max_nonce = max(max_nonce, transaction['nonce'])
+
+            if isinstance(transaction, Transaction):
+                sender_address = transaction.sender_address
+                if sender_address == self.wallet.address:
+                    max_nonce = max(max_nonce, transaction.nonce)
+            elif isinstance(transaction, dict):
+                sender_address = transaction['sender_address']
+                if sender_address == self.wallet.address:
+                    max_nonce = max(max_nonce, transaction['nonce'])
+            else:
+                raise TypeError("Unexpected transaction type")
+            
 
         # The next nonce should be one more than the max found
         return max_nonce + 1
@@ -179,11 +193,11 @@ class Node:
         if amount < 0:
             return False, "Stake amount cannot be negative"
         temptrans = Transaction(self, self.wallet.address, 0, "coins", amount, 0)
-        self.broadcast_transaction(self,temptrans)
+        temptrans.sign_transaction(self.wallet.private_key)
+        self.broadcast_transaction(temptrans)
         self.stake = amount
         self.stakes[self.wallet.public_key] = amount  # Update the stake amount in the dictionary
-        trans = self.wallet.sign_transaction(temptrans.to_dict())
-        self.broadcast_transaction(self,trans)
+        self.broadcast_transaction(temptrans)
         #self.stake = amount
         #self.stakes[self.wallet.public_key] = amount  # Update the stake amount in the dictionary
         return True, "Stake amount set successfully"
@@ -210,30 +224,30 @@ class Node:
         """
         Validate the transaction by verifying the signature and checking the sender's wallet balance.
         """
-        sender_address = transaction['sender_address']     
-        signature = transaction['signature']  
-        amount = transaction['amount']
+        sender_address = transaction.sender_address    
+        amount = transaction.amount
         
         # Verify the transaction signature
-        if not self.wallet.verify_signature(transaction, signature, sender_address):
+        if not transaction.verify_signature():
             return False, "Invalid signature"
 
-        if transaction['type_of_transaction'] == "coin":
+        if transaction.type_of_transaction == "coin":
             if self.calculate_balance(self.blockchain.chain, sender_address) - self.calculate_stakes(self.blockchain.chain, sender_address) < 1.03*amount:
                 return False, "Insufficient balance"
             return True, "Transaction validated successfully"
-        elif transaction['type_of_transaction'] == "message":
-            if len(transaction['massege']) < 1.03*amount:
+        elif transaction.type_of_transaction == "message":
+            if len(transaction.massege) < 1.03*amount:
                 return False, "Insufficient balance"
             return True, "Transaction validated successfully"
-        elif transaction['type_of_transaction'] == "Welcome to the network!":
+        elif transaction.type_of_transaction == "Welcome to the network!":
             return True, "Bootstrap Transaction"
         else:
             return False, "Unknown Transaction type"
 
 
     def broadcast_transaction(self, transaction):
-        for node_url in self.nodes.values():
+        for node_id, node_info in self.nodes.items():
+            node_url = node_info['address'] 
             requests.post(node_url + '/transactions/new', json=transaction.to_dict())
         print('Transaction broadcasted to the network')
 
@@ -366,7 +380,7 @@ class Node:
             nonce=self.get_next_nonce()  # Assuming a method to manage nonce
         )
 
-        transaction = self.wallet.sign_transaction(transaction.to_dict())
+        transaction.sign_transaction(self.wallet.private_key)
 
         # Validate the transaction
         is_valid, message = self.validate_transaction(transaction)
@@ -381,7 +395,7 @@ class Node:
 
     def calculate_balance(self, blockchain, public_key):
         balance = 0
-        for block in blockchain.chain:
+        for block in blockchain:
             for transaction in block.transactions:
                 # Check if the wallet is the recipient
                 if transaction['receiver_address'] == public_key:
@@ -399,7 +413,7 @@ class Node:
 
     def calculate_stakes(self, blockchain, public_key):
         totstake = 0
-        for block in blockchain.chain:
+        for block in blockchain:
             for transaction in block.transactions:
                 # Check if the wallet is the recipient
                 if transaction['receiver_address'] == 0 and transaction['sender_address'] == public_key: 

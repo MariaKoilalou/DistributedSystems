@@ -13,16 +13,17 @@ class Wallet:
         self.public_key = base64.b64encode(rsaKeys.publickey().export_key()).decode('utf-8')  
         self.address = self.public_key  
         self.balance = 0 
+
     def sign_transaction(self, transaction):
         """
         Sign a transaction with the wallet's private key.
         """        
-        transaction_string = json.dumps(transaction, sort_keys=True)
-        transaction_bytes = transaction_string.encode('utf-8')
-        transaction_hash = SHA256.new(transaction_bytes)
+        # transaction_string = json.dumps(transaction, sort_keys=True)
+        # transaction_bytes = transaction_string.encode('utf-8')
+        # transaction_hash = SHA256.new(transaction_bytes)
         private_key = RSA.import_key(self.private_key)
         signer = pkcs1_15.new(private_key)
-        signature = signer.sign(transaction_hash)
+        signature = signer.sign(transaction['transaction_id'])
         transaction['signature'] = base64.b64encode(signature).decode('utf-8')
         return transaction
 

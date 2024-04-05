@@ -5,7 +5,7 @@ def run_cli(node_instance, shutdown_event):
         action = input()
         print("\n")
         if action == 'balance':
-            my_balance = node_instance.calculate_balance(node_instance.blockchain, node_instance.wallet.public_key)
+            my_balance = node_instance.calculate_balance(node_instance.blockchain.chain, node_instance.wallet.public_key)
             print(f"Balance= {my_balance}")
         elif action == 'view':
             node_instance.view()
