@@ -29,13 +29,13 @@ class Block:
         return hashlib.sha256(block_string.encode()).hexdigest()
     
     def to_dict(self):
-        """
-        Convert the block details into a dictionary for easier processing and transmission.
-        """
+         
+        transactions_dict_list = [tx.to_dict() if hasattr(tx, 'to_dict') else tx for tx in self.transactions]
+
         return {
             'index': self.index,
             'timestamp': self.timestamp,
-            'transactions': self.transactions,
+            'transactions': transactions_dict_list,
             'validator': self.validator,
             'previous_hash': self.previous_hash,
             'current_hash': self.current_hash,

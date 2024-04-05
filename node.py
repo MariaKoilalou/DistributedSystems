@@ -228,9 +228,9 @@ class Node:
         """
         Validate a block by checking the validator and previous hash.
         """
-        # Check if the validator matches the stakeholder
-        if block.validator != self.PoS_Choose_Minter(block.previous_hash):
-            return False, "Block Validator does not match the result of the pseudo-random generator"
+        # # Check if the validator matches the stakeholder
+        # if block.validator != self.PoS_Choose_Minter(block.previous_hash):
+        #     return False, "Block Validator does not match the result of the pseudo-random generator"
 
         # Retrieve the previous block from the blockchain
         previous_block = self.blockchain.chain[-1]
@@ -289,16 +289,6 @@ class Node:
                 return False, f"Blockchain validation failed: {message}"
 
         return True, "Blockchain validation successful"
-
-    # def broadcast_block(self, block):
-    #     """
-    #     Broadcast the validated block to all other nodes in the network.
-    #     """
-    #     for node_url in self.nodes.values():
-    #         # Assuming each node has an API endpoint to receive new blocks
-    #         requests.post(f"{node_url}/receive_block", json=block.to_dict())
-
-    #     print("Block broadcasted to the network")
 
     def broadcast_all(self):
         # Data to be broadcasted: IP address, port, and public keys of all nodes
@@ -402,7 +392,7 @@ class Node:
             # Only create a new block if there are transactions in the pool
             if len(self.blockchain.transaction_pool) >= self.blockchain.block_capacity:
                 previous_block = self.blockchain.chain[-1]
-                new_block = Block(index=len(self.chain), transactions=self.blockchain.transaction_pool, validator=currentValidator, previous_hash=previous_block.current_hash)
+                new_block = Block(index=len(self.blockchain.chain), transactions=self.blockchain.transaction_pool, validator=currentValidator, previous_hash=previous_block.current_hash)
                 new_block.current_hash = new_block.calculate_hash()
                 if self.blockchain.add_block(new_block):
                     print("Block added")
