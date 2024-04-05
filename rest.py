@@ -208,7 +208,7 @@ def broadcast_blockchain():
         block_dict['transactions'] = [tx if isinstance(tx, dict) else tx.to_dict() for tx in block.transactions]
         blockchain_data.append(block_dict)
 
-    for node_address in node_addresses:
+    for node_address in node_addresses[:-1]:
         try:
             # Send the serialized blockchain data
             response = requests.post(f"{node_address}/update_blockchain", json=blockchain_data)

@@ -101,12 +101,20 @@ class Node:
         if response.status_code == 200:
             data = response.json()
             if 'node_address' in data:
+
                 self.update_blockchain(data['blockchain'])
+
+                if self.validate_chain:
+                    print('Local blockchain initialized with the received state from the bootstrap node')
+                else:
+                    print("Invalid chain")
+                    return False
+                
                 for node_id, node_info in data['nodes'].items():
                     if node_id == '4':
                         self.nodes = data['nodes']
                 print('Registered with the bootstrap node')
-                print('Local blockchain initialized with the received state from the bootstrap node')
+                return True
             else:
                 print('Error: node_address not found in the response.')
                 return False
@@ -114,10 +122,6 @@ class Node:
             return False
 
     def transfer_bcc_to_new_node(self, recipient_public_key, amount):
-        """
-        Create and execute a transaction to transfer BCC from this node to a new node,
-        then mint a new block containing this transaction.
-        """
 
         sender_address = self.wallet.public_key  
         receiver_address = recipient_public_key  
@@ -209,7 +213,7 @@ class Node:
 
         total_stakes = 0
         for node_id, node_info in self.nodes.items():
-            total_stakes+= self.calculate_stakes(self.blockchain.chain, node_info['public_key'])
+            total_stakes+= self.calculate_stakes(node_info['public_key'])
         rng = numpy.random.default_rng(seed_int)
         if total_stakes == 0:
             return False 
@@ -218,16 +222,13 @@ class Node:
         current = 0
 
         for node_id, node_info in self.nodes.items():
-            current += self.calculate_stakes(self.blockchain.chain, node_info['public_key'])
+            current += self.calculate_stakes(node_info['public_key'])
             if current >= stake_target:
                 validator = node_info['public_key']
                 break
         return validator
 
     def validate_block(self, block):
-        """
-        Validate a block by checking the validator and previous hash.
-        """
         # Check if the validator matches the stakeholder
         if block.validator != self.PoS_Choose_Minter(block.previous_hash):
             return False, "Block Validator does not match the result of the pseudo-random generator"
@@ -243,9 +244,6 @@ class Node:
     
 
     def validate_transaction(self, transaction):
-        """
-        Validate the transaction by verifying the signature and checking the sender's wallet balance.
-        """
         sender_address = transaction.sender_address    
         amount = transaction.amount
 
@@ -254,17 +252,17 @@ class Node:
             return False, "Invalid signature"
 
         if transaction.type_of_transaction == "coin":
-            if self.calculate_balance(self.blockchain.chain, sender_address) - self.calculate_stakes(self.blockchain.chain, sender_address) < 1.03*amount:
+            if self.calculate_balance(sender_address) - self.calculate_stakes(sender_address) < 1.03*amount:
                 return False, "Insufficient balance"
             return True, "Transaction validated successfully"
         elif transaction.type_of_transaction == "message":
-            if self.calculate_balance(self.blockchain.chain, sender_address) - self.calculate_stakes(self.blockchain.chain, sender_address) < len(transaction.message):
+            if self.calculate_balance(sender_address) - self.calculate_stakes(sender_address) < len(transaction.message):
                 return False, "Insufficient balance"
             return True, "Transaction validated successfully"
         elif transaction.type_of_transaction == "Welcome to the network!":
             return True, "Bootstrap Transaction"
         elif transaction.type_of_transaction == "stake":
-            if self.calculate_balance(self.blockchain.chain, sender_address) - self.calculate_stakes(self.blockchain.chain, sender_address) < amount:
+            if self.calculate_balance(sender_address) - self.calculate_stakes(sender_address) < amount:
                 return False, "Stake too much"
             return True, "Stake Transaction"
         else:
@@ -283,10 +281,7 @@ class Node:
             requests.post(node_url + '/receive_block', json=block)
         print('Block broadcasted to the network')
 
-    def validate_chain(self, chain):
-        """
-        Validate the received blockchain by validating each block in it.
-        """
+    def validate_chain(self):
         for block in self.blockchain.chain[1:]:  # Exclude the genesis block
             is_valid, message = self.validate_block(block)
             if not is_valid:
@@ -294,15 +289,6 @@ class Node:
 
         return True, "Blockchain validation successful"
 
-    # def broadcast_block(self, block):
-    #     """
-    #     Broadcast the validated block to all other nodes in the network.
-    #     """
-    #     for node_url in self.nodes.values():
-    #         # Assuming each node has an API endpoint to receive new blocks
-    #         requests.post(f"{node_url}/receive_block", json=block.to_dict())
-
-    #     print("Block broadcasted to the network")
 
     def broadcast_all(self):
         # Data to be broadcasted: IP address, port, and public keys of all nodes
@@ -341,7 +327,7 @@ class Node:
         View last transactions: print the transactions contained in the last validated block
         of the BlockChat blockchain.
         """
-        last_block = self.blockchain.get_last_block()
+        last_block = self.blockchain.chain[-1]
         if last_block:
             transactions = last_block.transactions
             val_id = self.get_node_id_by_public_key(last_block.validator)
@@ -434,11 +420,24 @@ class Node:
 
 
 
-    def calculate_balance(self, blockchain, public_key):
+    def calculate_balance(self, public_key):
         balance = 0
-        for block in blockchain:
+        for block in self.blockchain.chain:
             for transaction in block.transactions:
                 # Check if the wallet is the recipient
+                if transaction['receiver_address'] == public_key:
+                    balance += transaction['amount']
+                # Check if the wallet is the sender
+                if transaction['sender_address'] == public_key and transaction['receiver_address'] != 0:
+                    if transaction['type_of_transaction'] == "Welcome!":
+                        balance = transaction['amount']
+                    elif transaction['type_of_transaction'] == "coin":
+                        balance -= 1.03*transaction['amount'] 
+                    else:    
+                        balance -= len(transaction['message'])
+
+        for transaction in self.blockchain.transaction_pool:
+            # Check if the wallet is the recipient
                 if transaction['receiver_address'] == public_key:
                     balance += transaction['amount']
                 # Check if the wallet is the sender
@@ -452,13 +451,18 @@ class Node:
                 
         return balance
 
-    def calculate_stakes(self, blockchain, public_key):
+    def calculate_stakes(self, public_key):
         totstake = 0
-        for block in blockchain:
+        for block in self.blockchain.chain:
             for transaction in block.transactions:
                 # Check if the wallet is the recipient
                 if transaction['receiver_address'] == 0 and transaction['sender_address'] == public_key: 
                     totstake += transaction['amount']
+
+        for transaction in self.blockchain.transaction_pool:
+            if transaction['receiver_address'] == 0 and transaction['sender_address'] == public_key: 
+                totstake += transaction['amount']
+
         return totstake
     
         

@@ -69,15 +69,4 @@ class Blockchain:
         print("Blockchain is valid.")
         return True
 
-
-    
-
-    def get_last_block(self):
-        """
-        Retrieve the last block in the blockchain.
-        """
-        if self.chain:
-            return self.chain[-1]
-        else:
-            return None
     
