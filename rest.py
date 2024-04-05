@@ -116,10 +116,7 @@ def new_block():
     # Assume 'Transaction' class has a method to validate transactions
     new_block = Block(index=values['index'], transactions=values['transactions'], validator=values['validator'], previous_hash=values['previous_hash'])
     new_block.current_hash = new_block.calculate_hash()
-<<<<<<< HEAD
-=======
     node.add_block(new_block)
->>>>>>> 0dc6cf5 (blockchain failure transaction object not dict)
     if node.validate_block(new_block):
         blockchain.add_block(new_block)
         return jsonify({'error': 'Block broadcasted'}), 200
