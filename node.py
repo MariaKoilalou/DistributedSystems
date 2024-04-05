@@ -1,4 +1,5 @@
 import hashlib
+import json
 import requests
 from wallet import Wallet
 from transaction import Transaction
@@ -20,7 +21,6 @@ class Node:
         self.nonce = nonce
         self.wallet = self.generate_wallet()
         self.node_id = 0 if is_bootstrap else None
-        self.stakes = {} 
         self.nodes = {}
         
         
@@ -129,13 +129,13 @@ class Node:
            
         transaction.sign_transaction(self.wallet.private_key)
         # Add the signed transaction to the transaction pool
-        self.blockchain.add_transaction_to_pool(transaction)
+        self.blockchain.add_transaction_to_pool(transaction.to_dict())
     
         temptrans = Transaction(receiver_address, 0, "Welcome!", 10, "", 1)
 
         temptrans.sign_transaction(self.wallet.private_key)
 
-        self.blockchain.add_transaction_to_pool(temptrans)
+        self.blockchain.add_transaction_to_pool(temptrans.to_dict())
 
         # Mint a new block containing this transaction (PoS-specific logic may apply here)
         self.blockchain.mint_bootstrap_block(self.wallet.public_key)  # Use bootstrap node's public key as the validator
@@ -197,7 +197,7 @@ class Node:
         if amount < 0:
             return False, "Stake amount cannot be negative"
         
-        temptrans = Transaction(self.wallet.public_key, "stake", 0, "coins", amount,"",1)
+        temptrans = Transaction(self.wallet.public_key, 0, "stake", amount , "",1)
         temptrans.sign_transaction(self.wallet.private_key)
         self.broadcast_transaction(temptrans)
         return True, "Stake amount set successfully"
@@ -263,6 +263,10 @@ class Node:
             return True, "Transaction validated successfully"
         elif transaction.type_of_transaction == "Welcome to the network!":
             return True, "Bootstrap Transaction"
+        elif transaction.type_of_transaction == "stake":
+            if self.calculate_balance(self.blockchain.chain, sender_address) - self.calculate_stakes(self.blockchain.chain, sender_address) < amount:
+                return False, "Stake too much"
+            return True, "Stake Transaction"
         else:
             return False, "Unknown Transaction type"
 
@@ -276,7 +280,7 @@ class Node:
     def broadcast_block(self, block):
         for node_id, node_info in self.nodes.items():
             node_url = node_info['address'] 
-            requests.post(node_url + '/receive_block', json=block.to_dict())
+            requests.post(node_url + '/receive_block', json=block)
         print('Block broadcasted to the network')
 
     def validate_chain(self, chain):
@@ -399,23 +403,35 @@ class Node:
     def mint_block(self):
         currentValidator = self.PoS_Choose_Minter(self.blockchain.chain[-1].current_hash)
         if self.wallet.public_key == currentValidator:
-            # Only create a new block if there are transactions in the pool
             if len(self.blockchain.transaction_pool) >= self.blockchain.block_capacity:
                 previous_block = self.blockchain.chain[-1]
-                new_block = Block(index=len(self.chain), transactions=self.blockchain.transaction_pool, validator=currentValidator, previous_hash=previous_block.current_hash)
-                new_block.current_hash = new_block.calculate_hash()
-                if self.blockchain.add_block(new_block):
-                    print("Block added")
-                else:
-                    print("Block not added")
-                if self.broadcast_block(new_block):
+
+                # Handle both dict and Transaction instances in the transaction pool
+                transactions_data = []
+                for tx in self.blockchain.transaction_pool:
+                    if isinstance(tx, Transaction):
+                        transactions_data.append(tx.to_dict())
+                    elif isinstance(tx, dict):
+                        transactions_data.append(tx)  # tx is already a dict
+                    else:
+                        print("Unsupported transaction type in transaction pool")
+                        continue
+
+                new_block_data = {
+                    'index': len(self.blockchain.chain),
+                    'transactions': transactions_data,
+                    'validator': currentValidator,
+                    'previous_hash': previous_block.current_hash
+                }
+
+                if self.broadcast_block(new_block_data):
                     print("Block broadcasted")
+                    # Clear the transaction pool as needed here
                 else:
-                    print("Block didnt broadcast")
-                    self.blockchain.transaction_pool = self.blockchain.transaction_pool[self.blockchain.block_capacity:]  
-                print("Block added to the chain")
+                    print("Block didn't broadcast")
             else:
                 print("Transaction pool not full")
+
 
 
     def calculate_balance(self, blockchain, public_key):

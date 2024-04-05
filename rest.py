@@ -104,24 +104,39 @@ def new_transaction():
             )
     new_transaction.signature = values['signature']
     if node.validate_transaction(new_transaction):
-        blockchain.add_transaction_to_pool(new_transaction)
+        blockchain.add_transaction_to_pool(new_transaction.to_dict())
         node.mint_block()
         return jsonify({'error': 'Transaction broadcasted'}), 200
     else:
         return jsonify({'error': 'Invalid transaction'}), 400
     
+
 @app.route('/receive_block', methods=['POST'])
 def new_block():
     values = request.get_json()
-    # Assume 'Transaction' class has a method to validate transactions
-    new_block = Block(index=values['index'], transactions=values['transactions'], validator=values['validator'], previous_hash=values['previous_hash'])
-    new_block.current_hash = new_block.calculate_hash()
-    node.add_block(new_block)
+
+    # Log the received values for debugging purposes
+    print("Received data for new block:", values)
+
+    try:
+        # Instantiate the Block here
+        new_block = Block(
+            index=values['index'],
+            transactions=values['transactions'],
+            validator=values['validator'],
+            previous_hash=values['previous_hash']
+        )
+    except TypeError as e:
+        # This might catch issues with unexpected parameters or types
+        print("Error creating block:", e)
+        return jsonify({'error': 'Invalid block data'}), 400
+
     if node.validate_block(new_block):
         blockchain.add_block(new_block)
-        return jsonify({'error': 'Block broadcasted'}), 200
+        return jsonify({'message': 'Block added and broadcasted'}), 200
     else:
         return jsonify({'error': 'Invalid block'}), 400
+    
     
 @app.route('/blockchain', methods=['GET'])
 def get_full_chain():
@@ -194,8 +209,6 @@ def broadcast_blockchain():
         blockchain_data.append(block_dict)
 
     for node_address in node_addresses:
-        if node_address == node.api_url:  # Skip broadcasting to self
-            continue
         try:
             # Send the serialized blockchain data
             response = requests.post(f"{node_address}/update_blockchain", json=blockchain_data)
@@ -230,7 +243,6 @@ if __name__ == '__main__':
             print("Registration with the bootstrap node was successful.")
         else:
             print("Failed to register with the bootstrap node.")
-        print(f"Total stakes are {node.calculate_stakes(node.blockchain.chain, node.wallet.public_key)}")
 
 
     # CLI Thread
