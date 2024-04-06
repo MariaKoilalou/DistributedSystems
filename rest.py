@@ -102,7 +102,7 @@ def new_transaction():
                 message=values['message'],
                 nonce=values['nonce'],
             )
-    new_transaction.signature = values['signature']
+    new_transaction.sign_transaction(values['private_key'])
     if node.validate_transaction(new_transaction):
         blockchain.add_transaction_to_pool(new_transaction.to_dict())
         node.mint_block()
@@ -118,18 +118,13 @@ def new_block():
     # Log the received values for debugging purposes
     print("Received data for new block:", values)
 
-    try:
-        # Instantiate the Block here
-        new_block = Block(
-            index=values['index'],
-            transactions=values['transactions'],
-            validator=values['validator'],
-            previous_hash=values['previous_hash']
-        )
-    except TypeError as e:
-        # This might catch issues with unexpected parameters or types
-        print("Error creating block:", e)
-        return jsonify({'error': 'Invalid block data'}), 400
+    # Instantiate the Block here
+    new_block = Block(
+        index=values['index'],
+        transactions=values['transactions'],
+        validator=values['validator'],
+        previous_hash=values['previous_hash']
+    )
 
     if node.validate_block(new_block):
         blockchain.add_block(new_block)

@@ -16,7 +16,6 @@ class Block:
         # Serialize block data in a consistent order
         block_data = {
             'index': self.index,
-            'timestamp': self.timestamp,
             'transactions': [tx.to_dict() if hasattr(tx, 'to_dict') else tx for tx in self.transactions],            
             'validator': self.validator,
             'previous_hash': self.previous_hash
