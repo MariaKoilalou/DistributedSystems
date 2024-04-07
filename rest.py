@@ -213,6 +213,24 @@ def broadcast_blockchain():
                 print(f"Failed to broadcast blockchain to {node_address}. Status Code: {response.status_code}")
         except requests.exceptions.RequestException as e:
             print(f"Error broadcasting blockchain to {node_address}: {e}")
+from flask import request
+
+@app.route('/start_test', methods=['POST'])  # Change to accept POST requests
+def start_test():
+    # Ensure the `node` is initialized and has the `start_transaction_test` method
+    if node and hasattr(node, 'start_transaction_test'):
+        # Extract transactions_folder from the JSON data in the request
+        data = request.get_json()
+        transactions_folder = data.get('transactions_folder')
+
+        if transactions_folder:
+            # Start the transaction test using the specified transactions folder
+            node.start_transaction_test(transactions_folder)
+            return jsonify({'message': f'Transaction test started using folder {transactions_folder}'}), 200
+        else:
+            return jsonify({'error': 'Missing transactions_folder in JSON data'}), 400
+    else:
+        return jsonify({'error': 'Node not initialized or method not available'}), 500
 
 
 
@@ -224,12 +242,17 @@ if __name__ == '__main__':
     parser.add_argument('--port', type=int, required=True, help='Port number for the node')
     parser.add_argument('--is_bootstrap', action='store_true', help='Flag to set this node as the bootstrap node')
     parser.add_argument('--bootstrap_url', type=str, help='URL of the bootstrap node for registration')
+    parser.add_argument('--block_capacity', type=int, default=5, help='Block capacity for the blockchain')
+    parser.add_argument('--total_nodes', type=int, default=5, help='Total number of nodes in the network')
 
     args = parser.parse_args()
 
-    blockchain = Blockchain()  # Assuming a Blockchain class is defined elsewhere
+    # Initialize Blockchain with specified block capacity
+    blockchain = Blockchain(block_capacity=args.block_capacity)
 
-    node = Node(host=args.host, port=args.port, blockchain=blockchain, is_bootstrap=args.is_bootstrap)
+    # Initialize Node with specified total nodes and blockchain instance
+    node = Node(host=args.host, port=args.port, blockchain=blockchain, is_bootstrap=args.is_bootstrap, total_nodes=args.total_nodes)
+
     
     # Node registration logic
     if not args.is_bootstrap and args.bootstrap_url:

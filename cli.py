@@ -4,9 +4,23 @@ def run_cli(node_instance, shutdown_event):
     while not shutdown_event.is_set():
         action = input()
         print("\n")
+        if action.startswith('start test'):
+            # Automatically select the transactions folder based on total_nodes
+            if node_instance.total_nodes == 5:
+                transactions_folder = '5_node'
+            elif node_instance.total_nodes == 10:
+                transactions_folder = '10_node'
+            else:
+                print("Unsupported number of total nodes. Exiting...")
+                return
+            
+            node_addresses = [node_info["address"] for node_id, node_info in node_instance.nodes.items()]
+            node_instance.start_test_all_nodes(node_addresses, transactions_folder)
+            print(f"Started transaction test for all nodes using transactions from '{transactions_folder}' folder.")
+
         if action == 'balance':
-            my_balance = node_instance.calculate_balance(node_instance.blockchain.chain, node_instance.wallet.public_key)
-            my_stakes = node_instance.calculate_stakes(node_instance.blockchain.chain, node_instance.wallet.public_key)
+            my_balance = node_instance.calculate_balance(node_instance.wallet.public_key)
+            my_stakes = node_instance.calculate_stakes(node_instance.wallet.public_key)
 
             print(f"Balance= {my_balance}")
             print(f"Staked amount= {my_stakes}")
@@ -70,7 +84,9 @@ Available commands:\n
 \t--Show balance: print the balance of the wallet.\n
 4. stake <amount>\n
 \t--Stake a certain amount in the blockchain network.\n
-5. help\n
+5. start_test <transactions_folder>\n
+\t--Start transaction test: process transactions from the specified folder (e.g., '5_nodes').\n
+6. help\n
 '''
             print(help_str)
 

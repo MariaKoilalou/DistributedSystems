@@ -1,5 +1,7 @@
 import hashlib
 import json
+import os
+import time
 import requests
 from wallet import Wallet
 from transaction import Transaction
@@ -111,7 +113,7 @@ class Node:
                     return False
                 
                 for node_id, node_info in data['nodes'].items():
-                    if node_id == '4':
+                    if node_id == str(self.total_nodes-1):
                         self.nodes = data['nodes']
                 print('Registered with the bootstrap node')
                 return True
@@ -155,6 +157,7 @@ class Node:
                 return node_id  # Return the key (node ID)
         print("No match found.")
         return None
+    
 
     def get_next_nonce(self):
 
@@ -323,6 +326,8 @@ class Node:
             # Skip sending data if the current node is the node itself
             if node_id == self.node_id:
                 continue
+            if node_id == self.total_nodes - 1:
+                continue
             ip_address = node_info['address']
             url = f"{ip_address}/receive_data"
 
@@ -472,4 +477,80 @@ class Node:
 
         return totstake
     
-        
+    def start_test_all_nodes(self, node_addresses, transactions_folder):
+        for node_address in node_addresses:
+            try:
+                response = requests.post(f"{node_address}/start_test", json={'transactions_folder': transactions_folder})
+                if response.status_code == 200:
+                    print(f"Transaction test started successfully at {node_address}")
+                else:
+                    print(f"Failed to start transaction test at {node_address}. Status Code: {response.status_code}")
+            except requests.exceptions.RequestException as e:
+                print(f"Error communicating with node at {node_address}: {e}")
+
+    def start_transaction_test(self, transactions_folder):
+        """Start processing transactions from a specific folder."""
+        node_id = str(self.node_id)  # Assuming node_id is an attribute of Node
+        transactions_file_path = os.path.join(transactions_folder, f'trans{node_id}.txt')
+
+        self.load_and_process_transactions(transactions_file_path)
+
+    def load_and_process_transactions(self, filepath):
+        """Load transactions from a file and process them using the create_transaction method."""
+        with open(filepath, 'r') as file:
+            start_time = time.time()
+            transaction_count = 0
+            block_start_times = []
+            block_end_times = []
+            for line in file:
+                # Attempt to split each line into a node ID part and a message part
+                parts = line.strip().split(' ', 1)
+                if len(parts) != 2:
+                    print("Invalid transaction format in file:", line)
+                    continue
+
+                node_id_part, message = parts
+                # Extract the numeric part from the node ID part (e.g., '1' from 'id1')
+                recipient_id = ''.join(filter(str.isdigit, node_id_part))
+
+                if not recipient_id:
+                    print(f"Could not extract recipient ID from: {node_id_part}")
+                    continue
+
+                # Fetch the recipient's address using the recipient node ID
+                recipient_info = self.nodes.get(recipient_id)
+                if not recipient_info:
+                    print(f"Recipient node ID {recipient_id} not found in nodes dictionary.")
+                    continue
+                recipient_address = recipient_info.get('address')
+
+                # Use the create_transaction method to process the transaction
+                self.create_transaction(recipient_address=recipient_address, message=message)
+                transaction_count += 1
+
+            end_time = time.time()
+            self.throughput = transaction_count / (end_time - start_time)
+            self.transactions_processed = transaction_count
+
+            # After processing all transactions, calculate the average block time
+            self.calculate_block_time()
+
+            # Save the metrics
+            self.save_metrics(filepath)
+
+    def calculate_block_time(self):
+        # Calculate the average block creation time using the block_creation_time method for each block
+        block_times = [block.block_creation_time() for block in self.blockchain.chain if hasattr(block, 'block_creation_time')]
+        self.average_block_time = sum(block_times) / len(block_times) if block_times else 0
+
+
+    def save_metrics(self, filepath):
+        metrics = {
+            'throughput': self.throughput,
+            'average_block_time': self.average_block_time,
+            'transactions_processed': self.transactions_processed
+        }
+        metrics_filename = f'metrics_{os.path.basename(filepath)}_{self.total_nodes}_nodes_capacity_{self.blockchain.node_capacity}.json'
+        with open(metrics_filename, 'w') as f:
+            json.dump(metrics, f, indent=4)
+        print(f"Metrics saved to {metrics_filename}")

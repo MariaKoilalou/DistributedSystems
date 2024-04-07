@@ -7,11 +7,11 @@ import time
 import hashlib
 
 class Blockchain:
-    def __init__(self):
+    def __init__(self, block_capacity=5):
         self.chain = []
         self.transaction_pool = []
         self.stakes = {} 
-        self.block_capacity = 2
+        self.block_capacity = block_capacity
     
     def add_transaction_to_pool(self, transaction):
         self.transaction_pool.append(transaction)
