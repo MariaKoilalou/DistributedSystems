@@ -1,3 +1,6 @@
+import os
+
+
 def run_cli(node_instance, shutdown_event):
     print("\nWelcome! Use help to see the available commands.")
 
@@ -5,18 +8,28 @@ def run_cli(node_instance, shutdown_event):
         action = input()
         print("\n")
         if action.startswith('start test'):
-            # Automatically select the transactions folder based on total_nodes
-            if node_instance.total_nodes == 5:
-                transactions_folder = '5_node'
-            elif node_instance.total_nodes == 10:
-                transactions_folder = '10_node'
-            else:
-                print("Unsupported number of total nodes. Exiting...")
-                return
-            
-            node_addresses = [node_info["address"] for node_id, node_info in node_instance.nodes.items()]
-            node_instance.start_test_all_nodes(node_addresses, transactions_folder)
-            print(f"Started transaction test for all nodes using transactions from '{transactions_folder}' folder.")
+                # Automatically select the transactions folder based on total_nodes
+                transactions_folder = ''
+                if node_instance.total_nodes == 5:
+                    transactions_folder = '5_nodes'
+                elif node_instance.total_nodes == 10:
+                    transactions_folder = '10_nodes'
+                else:
+                    print("Unsupported number of total nodes. Exiting...")
+                    return
+                
+                script_dir = os.path.dirname(os.path.abspath(__file__))
+                # Construct the path to the transactions folder relative to the script directory
+                transactions_folder_path = os.path.join(script_dir, transactions_folder)
+                
+                # Verify the existence of the transactions folder
+                if not os.path.exists(transactions_folder_path):
+                    print(f"The transactions folder '{transactions_folder}' does not exist in the current directory.")
+                    return
+
+                node_addresses = [node_info["address"] for node_id, node_info in node_instance.nodes.items()]
+                node_instance.start_test_all_nodes(node_addresses, transactions_folder)
+                print(f"Started transaction test for all nodes using transactions from '{transactions_folder}' folder.")
 
         if action == 'balance':
             my_balance = node_instance.calculate_balance(node_instance.wallet.public_key)
@@ -36,7 +49,7 @@ def run_cli(node_instance, shutdown_event):
                     # Try to convert the content to a float, assuming it's an amount for a coin transfer
                     amount = float(content)
                     # Call the create_transaction method for transferring coins
-                    if node_instance.create_transaction(recipient_address, amount, type_of_transaction="coin"):
+                    if node_instance.create_transaction(recipient_address, amount, message="", type_of_transaction="coin"):
                         print(f"Transferred {amount} BCC to {recipient_address}.")
                     else:
                         print(f"Transferred failed.")

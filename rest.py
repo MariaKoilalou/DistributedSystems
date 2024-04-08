@@ -83,6 +83,7 @@ def register():
             'node_address': node_address,
             'total_nodes': [node_info['address'] for node_info in node.nodes.values()],
             'blockchain': blockchain_data,
+            'transaction_pool': node.blockchain.transaction_pool,
             'nodes': nodes_data
         }
         return jsonify(response), 200
@@ -93,7 +94,7 @@ def register():
 @app.route('/transactions/new', methods=['POST'])
 def new_transaction():
     values = request.get_json()
-    # Assume 'Transaction' class has a method to validate transactions
+
     new_transaction = Transaction(
                 sender_address=values['sender_address'],
                 receiver_address=values['receiver_address'],
@@ -102,9 +103,11 @@ def new_transaction():
                 message=values['message'],
                 nonce=values['nonce'],
             )
+    
     new_transaction.sign_transaction(values['private_key'])
+
     if node.validate_transaction(new_transaction):
-        blockchain.add_transaction_to_pool(new_transaction.to_dict())
+        node.blockchain.add_transaction_to_pool(new_transaction.to_dict())
         node.mint_block()
         return jsonify({'error': 'Transaction broadcasted'}), 200
     else:
@@ -127,7 +130,7 @@ def new_block():
     )
 
     if node.validate_block(new_block):
-        blockchain.add_block(new_block)
+        node.blockchain.add_block(new_block)
         return jsonify({'message': 'Block added and broadcasted'}), 200
     else:
         return jsonify({'error': 'Invalid block'}), 400
@@ -154,20 +157,21 @@ def consensus():
 @app.route('/update_blockchain', methods=['POST'])
 def update_blockchain():
     try:
-        incoming_chain = request.get_json()
+        data = request.get_json()
+        incoming_chain = data['blockchain_data']
+
         if not incoming_chain:
             return jsonify({'error': 'Invalid data received'}), 400
 
         current_chain_backup = node.blockchain.chain
         node.blockchain.chain = [Block(**block_data) for block_data in incoming_chain]
-
+        node.blockchain.transaction_pool = data['transaction_pool']
         if node.blockchain.validate_chain():
             current_len = len(current_chain_backup)
             incoming_len = len(node.blockchain.chain)
 
             if incoming_len > current_len:
-                # Convert the blockchain into a format that can be JSON-serialized
-                updated_chain = [block.to_dict() for block in node.blockchain.chain]  # Assuming each Block has a `to_dict` method
+                updated_chain = [block.to_dict() for block in node.blockchain.chain]  
                 return jsonify({'message': 'Blockchain updated successfully', 'new_chain': updated_chain}), 200
             else:
                 node.blockchain.chain = current_chain_backup
@@ -176,7 +180,6 @@ def update_blockchain():
             node.blockchain.chain = current_chain_backup
             return jsonify({'error': 'Received chain is invalid'}), 400
     except Exception as e:
-        # Assuming `logger` is defined and configured elsewhere in your code
         logger.exception("Failed to update blockchain: %s", str(e))
         return jsonify({'error': 'Internal server error'}), 500
 
@@ -206,7 +209,7 @@ def broadcast_blockchain():
     for node_address in node_addresses[:-1]:
         try:
             # Send the serialized blockchain data
-            response = requests.post(f"{node_address}/update_blockchain", json=blockchain_data)
+            response = requests.post(f"{node_address}/update_blockchain", json={'blockchain_data': blockchain_data, 'transaction_pool': node.blockchain.transaction_pool})
             if response.status_code == 200:
                 print(f"Successfully broadcasted blockchain to {node_address}.")
             else:
@@ -215,22 +218,24 @@ def broadcast_blockchain():
             print(f"Error broadcasting blockchain to {node_address}: {e}")
 from flask import request
 
-@app.route('/start_test', methods=['POST'])  # Change to accept POST requests
+@app.route('/start_test', methods=['POST'])
 def start_test():
-    # Ensure the `node` is initialized and has the `start_transaction_test` method
     if node and hasattr(node, 'start_transaction_test'):
         # Extract transactions_folder from the JSON data in the request
         data = request.get_json()
         transactions_folder = data.get('transactions_folder')
 
         if transactions_folder:
-            # Start the transaction test using the specified transactions folder
-            node.start_transaction_test(transactions_folder)
-            return jsonify({'message': f'Transaction test started using folder {transactions_folder}'}), 200
+            
+            for node_id in node.nodes.keys():
+                node.start_transaction_test(transactions_folder, node_id)
+            
+            return jsonify({'message': f'Transaction tests started for all nodes using folder {transactions_folder}'}), 200
         else:
             return jsonify({'error': 'Missing transactions_folder in JSON data'}), 400
     else:
         return jsonify({'error': 'Node not initialized or method not available'}), 500
+
 
 
 

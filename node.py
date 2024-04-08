@@ -63,6 +63,13 @@ class Node:
                 previous_hash="1"
             )
             self.blockchain.add_block(genesis_block)
+            temptrans = Transaction(self.wallet.public_key, 0, "Initial stake", 10, "", 1)
+
+            temptrans.sign_transaction(self.wallet.private_key)
+
+            self.blockchain.add_transaction_to_pool(temptrans.to_dict())
+
+            self.blockchain.mint_bootstrap_block(self.wallet.public_key) 
 
     def update_blockchain(self, incoming_chain):
         try:
@@ -105,6 +112,19 @@ class Node:
             if 'node_address' in data:
 
                 self.update_blockchain(data['blockchain'])
+                self.blockchain.transaction_pool = data['transaction_pool']
+                
+                temptrans = Transaction(self.wallet.public_key, 0, "Initial stake", 10, "", 1)
+
+                temptrans.sign_transaction(self.wallet.private_key)
+
+                self.blockchain.add_transaction_to_pool(temptrans.to_dict())
+
+                for node_id, node_info in data['nodes'].items():
+                    if node_id == "0":
+                        bootstrap_key = node_info['public_key']
+
+                self.blockchain.mint_bootstrap_block(bootstrap_key) 
 
                 if self.validate_chain:
                     print('Local blockchain initialized with the received state from the bootstrap node')
@@ -123,6 +143,8 @@ class Node:
         else:
             return False
 
+
+
     def transfer_bcc_to_new_node(self, recipient_public_key, amount):
 
         sender_address = self.wallet.public_key  
@@ -137,14 +159,8 @@ class Node:
         # Add the signed transaction to the transaction pool
         self.blockchain.add_transaction_to_pool(transaction.to_dict())
     
-        temptrans = Transaction(receiver_address, 0, "Welcome!", 10, "", 1)
+        self.blockchain.mint_bootstrap_block(self.wallet.public_key)
 
-        temptrans.sign_transaction(self.wallet.private_key)
-
-        self.blockchain.add_transaction_to_pool(temptrans.to_dict())
-
-        # Mint a new block containing this transaction (PoS-specific logic may apply here)
-        self.blockchain.mint_bootstrap_block(self.wallet.public_key)  # Use bootstrap node's public key as the validator
 
 
     def get_node_id_by_public_key(self, public_key):
@@ -199,7 +215,6 @@ class Node:
         if amount < 0:
             return False, "Stake amount cannot be negative"
         
-        # temptrans = Transaction(self.wallet.public_key, 0, "stake", amount , "",1)
         transaction = {
             'sender_address': self.wallet.public_key,
             'receiver_address':0,
@@ -269,7 +284,7 @@ class Node:
                 return False
             print("Transaction validated successfully")
             return True
-        elif transaction.type_of_transaction == "Welcome to the network!":
+        elif transaction.type_of_transaction == "Welcome!":
             print("Bootstrap Transaction")
             return True
         elif transaction.type_of_transaction == "stake":
@@ -277,6 +292,9 @@ class Node:
                 print("Stake too much")
                 return False
             print("Stake Transaction")
+            return True
+        elif transaction.type_of_transaction == "Initial stake":
+            print("Bootstrap Stake")
             return True
         else:
             print("Unknown Transaction type")
@@ -323,6 +341,7 @@ class Node:
         node_items = list(self.nodes.items())[:-1]
         
         for node_id, node_info in node_items:
+        
             # Skip sending data if the current node is the node itself
             if node_id == self.node_id:
                 continue
@@ -392,6 +411,8 @@ class Node:
         }
 
         self.broadcast_transaction(transaction)
+
+        return True
             
 
 
@@ -418,7 +439,8 @@ class Node:
                     'validator': currentValidator,
                     'previous_hash': previous_block.current_hash
                 }
-
+                print("Transaction Pool:")
+                print(f"{self.blockchain.transaction_pool}")
                 self.blockchain.transaction_pool = self.blockchain.transaction_pool[self.blockchain.block_capacity:]  
 
                 try: 
@@ -434,48 +456,54 @@ class Node:
 
     def calculate_balance(self, public_key):
         balance = 0
+
         for block in self.blockchain.chain:
             for transaction in block.transactions:
-                # Check if the wallet is the recipient
-                if transaction['receiver_address'] == public_key:
+                if transaction['receiver_address'] == public_key :
                     balance += transaction['amount']
-                # Check if the wallet is the sender
                 if transaction['sender_address'] == public_key and transaction['receiver_address'] != 0:
                     if transaction['type_of_transaction'] == "Welcome!":
-                        balance = transaction['amount']
+                        balance -= transaction['amount']
                     elif transaction['type_of_transaction'] == "coin":
                         balance -= 1.03*transaction['amount'] 
-                    else:    
+                    elif transaction['type_of_transaction'] == "message":    
                         balance -= len(transaction['message'])
+                    else:
+                        break
 
         for transaction in self.blockchain.transaction_pool:
-            # Check if the wallet is the recipient
-                if transaction['receiver_address'] == public_key:
+                if transaction['receiver_address'] == public_key :
                     balance += transaction['amount']
-                # Check if the wallet is the sender
                 if transaction['sender_address'] == public_key and transaction['receiver_address'] != 0:
                     if transaction['type_of_transaction'] == "Welcome!":
-                        balance = transaction['amount']
+                        balance -= transaction['amount']
                     elif transaction['type_of_transaction'] == "coin":
                         balance -= 1.03*transaction['amount'] 
-                    else:    
+                    elif transaction['type_of_transaction'] == "message":    
                         balance -= len(transaction['message'])
-                
+                    else:
+                        break
+
         return balance
 
     def calculate_stakes(self, public_key):
-        totstake = 0
-        for block in self.blockchain.chain:
-            for transaction in block.transactions:
-                # Check if the wallet is the recipient
-                if transaction['receiver_address'] == 0 and transaction['sender_address'] == public_key: 
-                    totstake = transaction['amount']
+        totstake = 10
 
-        for transaction in self.blockchain.transaction_pool:
-            if transaction['receiver_address'] == 0 and transaction['sender_address'] == public_key: 
+        for transaction in reversed(self.blockchain.transaction_pool):
+            if transaction['type_of_transaction'] == "stake" and transaction['sender_address'] == public_key:
                 totstake = transaction['amount']
+                break  
+
+        if totstake == 10: 
+            for block in reversed(self.blockchain.chain):  
+                for transaction in reversed(block.transactions):  
+                    if transaction['type_of_transaction'] == "stake" and transaction['sender_address'] == public_key:
+                        totstake = transaction['amount']
+                        return totstake  
 
         return totstake
+
+
     
     def start_test_all_nodes(self, node_addresses, transactions_folder):
         for node_address in node_addresses:
@@ -488,69 +516,58 @@ class Node:
             except requests.exceptions.RequestException as e:
                 print(f"Error communicating with node at {node_address}: {e}")
 
-    def start_transaction_test(self, transactions_folder):
-        """Start processing transactions from a specific folder."""
-        node_id = str(self.node_id)  # Assuming node_id is an attribute of Node
+    def start_transaction_test(self, transactions_folder, node_id):
         transactions_file_path = os.path.join(transactions_folder, f'trans{node_id}.txt')
-
+        if not os.path.exists(transactions_file_path):
+            print(f"Transaction file '{transactions_file_path}' does not exist.")
+            return
         self.load_and_process_transactions(transactions_file_path)
 
     def load_and_process_transactions(self, filepath):
-        """Load transactions from a file and process them using the create_transaction method."""
         with open(filepath, 'r') as file:
             start_time = time.time()
             transaction_count = 0
-            block_start_times = []
-            block_end_times = []
             for line in file:
-                # Attempt to split each line into a node ID part and a message part
                 parts = line.strip().split(' ', 1)
                 if len(parts) != 2:
                     print("Invalid transaction format in file:", line)
                     continue
 
                 node_id_part, message = parts
-                # Extract the numeric part from the node ID part (e.g., '1' from 'id1')
                 recipient_id = ''.join(filter(str.isdigit, node_id_part))
-
                 if not recipient_id:
                     print(f"Could not extract recipient ID from: {node_id_part}")
                     continue
 
-                # Fetch the recipient's address using the recipient node ID
-                recipient_info = self.nodes.get(recipient_id)
-                if not recipient_info:
+                for node_id, node_info in self.nodes.items():
+                    if node_id == recipient_id:
+                        recipient_info = node_info
+                        break
+                else:
                     print(f"Recipient node ID {recipient_id} not found in nodes dictionary.")
                     continue
-                recipient_address = recipient_info.get('address')
 
-                # Use the create_transaction method to process the transaction
-                self.create_transaction(recipient_address=recipient_address, message=message)
+                recipient_address = recipient_info['address']
+
+                self.create_transaction(recipient_address, 0, message, "message")
+
                 transaction_count += 1
 
             end_time = time.time()
-            self.throughput = transaction_count / (end_time - start_time)
+            self.throughput = transaction_count / (end_time - start_time) if end_time > start_time else 0
             self.transactions_processed = transaction_count
-
-            # After processing all transactions, calculate the average block time
             self.calculate_block_time()
-
-            # Save the metrics
             self.save_metrics(filepath)
 
+
+
     def calculate_block_time(self):
-        # Calculate the average block creation time using the block_creation_time method for each block
         block_times = [block.block_creation_time() for block in self.blockchain.chain if hasattr(block, 'block_creation_time')]
         self.average_block_time = sum(block_times) / len(block_times) if block_times else 0
 
-
     def save_metrics(self, filepath):
-        metrics = {
-            'throughput': self.throughput,
-            'average_block_time': self.average_block_time,
-            'transactions_processed': self.transactions_processed
-        }
-        metrics_filename = f'metrics_{os.path.basename(filepath)}_{self.total_nodes}_nodes_capacity_{self.blockchain.node_capacity}.json'
+        metrics = {'throughput': self.throughput, 'average_block_time': self.average_block_time, 'transactions_processed': self.transactions_processed}
+        metrics_filename = f'metrics_{os.path.basename(filepath)}_{self.total_nodes}_nodes_capacity_{self.blockchain.block_capacity}.json'
         with open(metrics_filename, 'w') as f:
             json.dump(metrics, f, indent=4)
         print(f"Metrics saved to {metrics_filename}")
