@@ -461,7 +461,7 @@ class Node:
             for transaction in block.transactions:
                 if transaction['receiver_address'] == public_key :
                     balance += transaction['amount']
-                if transaction['sender_address'] == public_key and transaction['receiver_address'] != 0:
+                if transaction['sender_address'] == public_key and transaction['receiver_address'] != 0 and balance > 0 :
                     if transaction['type_of_transaction'] == "Welcome!":
                         balance -= transaction['amount']
                     elif transaction['type_of_transaction'] == "coin":
@@ -474,7 +474,7 @@ class Node:
         for transaction in self.blockchain.transaction_pool:
                 if transaction['receiver_address'] == public_key :
                     balance += transaction['amount']
-                if transaction['sender_address'] == public_key and transaction['receiver_address'] != 0:
+                if transaction['sender_address'] == public_key and transaction['receiver_address'] != 0 and balance > 0:
                     if transaction['type_of_transaction'] == "Welcome!":
                         balance -= transaction['amount']
                     elif transaction['type_of_transaction'] == "coin":
@@ -483,8 +483,11 @@ class Node:
                         balance -= len(transaction['message'])
                     else:
                         break
-
-        return balance
+        if balance >= 0:
+            return balance
+        else:
+            balance = 0 
+            return balance
 
     def calculate_stakes(self, public_key):
         totstake = 10
@@ -503,18 +506,28 @@ class Node:
 
         return totstake
 
-
-    
     def start_test_all_nodes(self, node_addresses, transactions_folder):
         for node_address in node_addresses:
             try:
-                response = requests.post(f"{node_address}/start_test", json={'transactions_folder': transactions_folder})
+                response = requests.post(node_address + '/start_test', json={'transactions_folder': transactions_folder})
                 if response.status_code == 200:
                     print(f"Transaction test started successfully at {node_address}")
                 else:
                     print(f"Failed to start transaction test at {node_address}. Status Code: {response.status_code}")
             except requests.exceptions.RequestException as e:
                 print(f"Error communicating with node at {node_address}: {e}")
+
+    def start_test_all_nodes(self, node_addresses, transactions_folder):
+        for node_id, node_address in self.nodes.items():  # Iterate over nodes and their IDs
+            try:
+                response = requests.post(f"{node_address}/start_test", json={'transactions_folder': transactions_folder, 'node_id': node_id})
+                if response.status_code == 200:
+                    print(f"Transaction test started successfully at {node_address} for node ID {node_id}")
+                else:
+                    print(f"Failed to start transaction test at {node_address} for node ID {node_id}. Status Code: {response.status_code}")
+            except requests.exceptions.RequestException as e:
+                print(f"Error communicating with node at {node_address} for node ID {node_id}: {e}")
+
 
     def start_transaction_test(self, transactions_folder, node_id):
         transactions_file_path = os.path.join(transactions_folder, f'trans{node_id}.txt')

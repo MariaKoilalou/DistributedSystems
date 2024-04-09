@@ -220,21 +220,18 @@ from flask import request
 
 @app.route('/start_test', methods=['POST'])
 def start_test():
-    if node and hasattr(node, 'start_transaction_test'):
-        # Extract transactions_folder from the JSON data in the request
-        data = request.get_json()
-        transactions_folder = data.get('transactions_folder')
+    data = request.get_json()
+    transactions_folder = data.get('transactions_folder')
 
-        if transactions_folder:
-            
-            for node_id in node.nodes.keys():
-                node.start_transaction_test(transactions_folder, node_id)
-            
-            return jsonify({'message': f'Transaction tests started for all nodes using folder {transactions_folder}'}), 200
-        else:
-            return jsonify({'error': 'Missing transactions_folder in JSON data'}), 400
+    if transactions_folder:
+        
+        for node_id, node_info in node.nodes.items():
+            node.start_transaction_test(transactions_folder, node_id)
+        
+        return jsonify({'message': f'Transaction tests started for all nodes using folder {transactions_folder}'}), 200
     else:
-        return jsonify({'error': 'Node not initialized or method not available'}), 500
+        return jsonify({'error': 'Missing transactions_folder in JSON data'}), 400
+
 
 
 
