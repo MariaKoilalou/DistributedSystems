@@ -146,15 +146,6 @@ def get_full_chain():
     }
     return jsonify(response), 200
 
-@app.route('/nodes/resolve', methods=['GET'])
-def consensus():
-    replaced = node.blockchain.resolve_conflicts()
-    if replaced:
-        response = {'message': 'Our chain was replaced'}
-    else:
-        response = {'message': 'Our chain is authoritative'}
-    return jsonify(response), 200
-
 @app.route('/update_blockchain', methods=['POST'])
 def update_blockchain():
     try:
@@ -231,7 +222,17 @@ def start_test():
         return jsonify({'error': 'Missing transactions_folder in JSON data'}), 400
 
 
-
+def report_transactions(self, transaction_count):
+        # This function would be called to report this node's transaction count to the central node
+        central_node_url = "http://central-node-address:port/report"  # Adjust this to your central node's address
+        try:
+            response = requests.post(central_node_url, json={'node_id': self.node_id, 'transactions': transaction_count})
+            if response.status_code == 200:
+                print("Reported transaction count successfully")
+            else:
+                print("Failed to report transaction count")
+        except requests.exceptions.RequestException as e:
+            print(f"Error reporting transaction count: {e}")
 
 
 if __name__ == '__main__':

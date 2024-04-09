@@ -23,6 +23,8 @@ class Node:
         self.nonce = nonce
         self.wallet = self.generate_wallet()
         self.node_id = 0 if is_bootstrap else None
+        self.transactions = 0
+        self.total_processing_time = 0
         self.nodes = {}
         
         
@@ -124,7 +126,7 @@ class Node:
                     if node_id == "0":
                         bootstrap_key = node_info['public_key']
 
-                self.blockchain.mint_bootstrap_block(bootstrap_key) 
+                # self.blockchain.mint_bootstrap_block(bootstrap_key) 
 
                 if self.validate_chain:
                     print('Local blockchain initialized with the received state from the bootstrap node')
@@ -269,7 +271,7 @@ class Node:
                 return False
             print("Transaction validated successfully")
             return True
-        elif transaction.type_of_transaction == "Welcome!":
+        elif transaction.type_of_transaction == "Welcome!" or transaction.type_of_transaction == "genesis" or transaction.type_of_transaction == "Initial stake":
             print("Bootstrap Transaction")
             return True
         elif transaction.type_of_transaction == "stake":
@@ -277,9 +279,6 @@ class Node:
                 print("Stake too much")
                 return False
             print("Stake Transaction")
-            return True
-        elif transaction.type_of_transaction == "Initial stake":
-            print("Bootstrap Stake")
             return True
         else:
             print("Unknown Transaction type")
@@ -403,38 +402,38 @@ class Node:
 
     def mint_block(self):
             currentValidator = self.PoS_Choose_Minter(self.blockchain.chain[-1].current_hash)
-            if self.wallet.public_key == currentValidator:
-                if len(self.blockchain.transaction_pool) == self.blockchain.block_capacity:
-                    previous_block = self.blockchain.chain[-1]
+            if len(self.blockchain.transaction_pool) == self.blockchain.block_capacity:
+                transactions = self.blockchain.transaction_pool
+                self.blockchain.transaction_pool = []
+                if self.wallet.public_key == currentValidator:
+                        previous_block = self.blockchain.chain[-1]
 
-                    # Handle both dict and Transaction instances in the transaction pool
-                    transactions_data = []
-                    for tx in self.blockchain.transaction_pool:
-                        if isinstance(tx, Transaction):
-                            transactions_data.append(tx.to_dict())
-                        elif isinstance(tx, dict):
-                            transactions_data.append(tx)  # tx is already a dict
-                        else:
-                            print("Unsupported transaction type in transaction pool")
-                            continue
+                        # Handle both dict and Transaction instances in the transaction pool
+                        transactions_data = []
+                        for tx in transactions:
+                            if isinstance(tx, Transaction):
+                                transactions_data.append(tx.to_dict())
+                            elif isinstance(tx, dict):
+                                transactions_data.append(tx)  # tx is already a dict
+                            else:
+                                print("Unsupported transaction type in transaction pool")
+                                continue
 
-                    new_block_data = {
-                        'index': len(self.blockchain.chain),
-                        'transactions': transactions_data,
-                        'validator': currentValidator,
-                        'previous_hash': previous_block.current_hash
-                    }
+                        new_block_data = {
+                            'index': len(self.blockchain.chain),
+                            'transactions': transactions_data,
+                            'validator': currentValidator,
+                            'previous_hash': previous_block.current_hash
+                        }
 
-                    self.blockchain.transaction_pool = self.blockchain.transaction_pool[self.blockchain.block_capacity:]  
-
-                    try: 
-                        self.broadcast_block(new_block_data)
-                        print("Block broadcasted")
-                    except Exception as e:
-                        print(f"Broadcast block failed: {e}")
-                        return False
-                else:
-                    print("Transaction pool not full")
+                        try: 
+                            self.broadcast_block(new_block_data)
+                            print("Block broadcasted")
+                        except Exception as e:
+                            print(f"Broadcast block failed: {e}")
+                            return False
+            else:
+                print("Transaction pool not full")
 
 
 
@@ -455,8 +454,6 @@ class Node:
                         balance -= 1.03*transaction['amount'] 
                     elif transaction['type_of_transaction'] == "message":    
                         balance -= len(transaction['message'])
-                    else:
-                        break
 
         for transaction in self.blockchain.transaction_pool:
                 if transaction['receiver_address'] == public_key :
@@ -468,9 +465,8 @@ class Node:
                         balance -= 1.03*transaction['amount'] 
                     elif transaction['type_of_transaction'] == "message":    
                         balance -= len(transaction['message'])
-                    else:
-                        break
-        if balance >= 0:
+
+        if balance > 0:
             return balance
         else:
             balance = 0 
@@ -503,6 +499,10 @@ class Node:
                     print(f"Failed to start transaction test at {node_address}. Status Code: {response.status_code}")
             except requests.exceptions.RequestException as e:
                 print(f"Error communicating with node at {node_address}: {e}")
+
+        
+        metrics_filepath = f'metrics_{self.total_nodes}_nodes_capacity{self.blockchain.block_capacity}.txt'
+        self.save_metrics(metrics_filepath)
 
     def start_transaction_test(self, transactions_folder, node_id): 
         transactions_file_path = os.path.join(transactions_folder, f'trans{node_id}.txt')
@@ -545,22 +545,38 @@ class Node:
                 transaction_count += 1
 
             end_time = time.time()
-            self.throughput = transaction_count / (end_time - start_time) if end_time > start_time else 0
-            self.transactions_processed = transaction_count
-            self.calculate_block_time()
-            self.save_metrics(filepath)
+            processing_time = end_time - start_time
+            self.total_processing_time += processing_time
+            self.transactions += transaction_count
 
 
+    def count_blocks(self):
+        valid_blocks = [block for block in self.blockchain.chain if not any(
+            tx['type_of_transaction'] in ["genesis", "Initial stake", "Welcome!"] for tx in block.transactions)]
+        return len(valid_blocks)
+    
+    def save_metrics(self, metrics_filename):
+        if self.transactions == 0:
+            print("No transactions to calculate metrics.")
+            return
 
+        block_count = self.count_blocks()  
+        throughput = self.transactions / self.total_processing_time
+        block_time = self.total_processing_time / block_count if block_count else 0
 
-
-    def calculate_block_time(self):
-        block_times = [block.block_creation_time() for block in self.blockchain.chain if hasattr(block, 'block_creation_time')]
-        self.average_block_time = sum(block_times) / len(block_times) if block_times else 0
-
-    def save_metrics(self, filepath):
-        metrics = {'throughput': self.throughput, 'average_block_time': self.average_block_time, 'transactions_processed': self.transactions_processed}
-        metrics_filename = f'metrics_{os.path.basename(filepath)}_{self.total_nodes}_nodes_capacity_{self.blockchain.block_capacity}.json'
-        with open(metrics_filename, 'w') as f:
-            json.dump(metrics, f, indent=4)
-        print(f"Metrics saved to {metrics_filename}")
+        current_directory = os.getcwd()  # Get the current working directory
+        directory_path = os.path.join(current_directory, 'test_results')  # Form the path to the test_results directory
+        filepath = os.path.join(directory_path, metrics_filename)  # Form the full file path
+        
+        # Ensure the directory exists
+        os.makedirs(directory_path, exist_ok=True)  # Create the directory if it does not exist
+        
+        # Write the metrics to the file
+        try:
+            with open(filepath, 'w') as file:
+                file.write(f"Transactions: {self.transactions}\n")
+                file.write(f"Throughput: {throughput} transactions/second\n")
+                file.write(f"Block Count: {block_count}\n")
+                file.write(f"Average Block Time: {block_time} seconds/block\n")
+        except Exception as e:
+            print(f"Failed to save metrics: {e}")

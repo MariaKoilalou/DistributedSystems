@@ -20,12 +20,12 @@ class Blockchain:
     
     def mint_bootstrap_block(self, validator):
         # Only create a new block if there are transactions in the pool
-        if len(self.transaction_pool) >= self.block_capacity:
+        if len(self.transaction_pool) == self.block_capacity:
             previous_block = self.chain[-1]
             new_block = Block(index=len(self.chain), transactions=self.transaction_pool, validator=validator, previous_hash=previous_block.current_hash)
             new_block.current_hash = new_block.calculate_hash()
             self.add_block(new_block)
-            self.transaction_pool = self.transaction_pool[self.block_capacity:]  
+            self.transaction_pool = []
             print("Block added to the chain")
         else:
             print("Transaction pool not full")
