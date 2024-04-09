@@ -517,18 +517,6 @@ class Node:
             except requests.exceptions.RequestException as e:
                 print(f"Error communicating with node at {node_address}: {e}")
 
-    def start_test_all_nodes(self, node_addresses, transactions_folder):
-        for node_id, node_address in self.nodes.items():  # Iterate over nodes and their IDs
-            try:
-                response = requests.post(f"{node_address}/start_test", json={'transactions_folder': transactions_folder, 'node_id': node_id})
-                if response.status_code == 200:
-                    print(f"Transaction test started successfully at {node_address} for node ID {node_id}")
-                else:
-                    print(f"Failed to start transaction test at {node_address} for node ID {node_id}. Status Code: {response.status_code}")
-            except requests.exceptions.RequestException as e:
-                print(f"Error communicating with node at {node_address} for node ID {node_id}: {e}")
-
-
     def start_transaction_test(self, transactions_folder, node_id):
         transactions_file_path = os.path.join(transactions_folder, f'trans{node_id}.txt')
         if not os.path.exists(transactions_file_path):
