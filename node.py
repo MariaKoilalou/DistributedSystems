@@ -176,38 +176,32 @@ class Node:
     
 
     def get_next_nonce(self):
-
-        # Start by considering transactions in the blockchain
         max_nonce = 0
         for block in self.blockchain.chain:
             for transaction in block.transactions:
-
                 if isinstance(transaction, Transaction):
-                    sender_address = transaction.sender_address
-                    if sender_address == self.wallet.address:
-                        max_nonce = max(max_nonce, transaction.nonce)
+                    if transaction.type_of_transaction == "coin" or transaction.type_of_transaction=="message":
+                        sender_address = transaction.sender_address
+                        if sender_address == self.wallet.address:
+                            max_nonce = max(max_nonce, transaction.nonce)
                 elif isinstance(transaction, dict):
-                    sender_address = transaction['sender_address']
-                    if sender_address == self.wallet.address:
-                        max_nonce = max(max_nonce, transaction['nonce'])
-                else:
-                    raise TypeError("Unexpected transaction type")
-
-        # Also consider transactions in the transaction pool
-        for transaction in self.blockchain.transaction_pool:
-
-            if isinstance(transaction, Transaction):
-                sender_address = transaction.sender_address
-                if sender_address == self.wallet.address:
-                    max_nonce = max(max_nonce, transaction.nonce)
-            elif isinstance(transaction, dict):
-                sender_address = transaction['sender_address']
-                if sender_address == self.wallet.address:
-                    max_nonce = max(max_nonce, transaction['nonce'])
-            else:
-                raise TypeError("Unexpected transaction type")
-            
-
+                     if transaction['type_of_transaction'] == "coin" or transaction['type_of_transaction']=="message":
+                        sender_address = transaction['sender_address']
+                        if sender_address == self.wallet.address:
+                            max_nonce = max(max_nonce, transaction['nonce'])
+        if max_nonce == 0:
+            # Also consider transactions in the transaction pool
+            for transaction in self.blockchain.transaction_pool:
+                if isinstance(transaction, Transaction):
+                    if transaction.type_of_transaction == "coin" or transaction.type_of_transaction=="message":
+                        sender_address = transaction.sender_address
+                        if sender_address == self.wallet.address:
+                            max_nonce = max(max_nonce, transaction.nonce)
+                elif isinstance(transaction, dict):
+                    if transaction['type_of_transaction'] == "coin" or transaction['type_of_transaction']=="message":
+                        sender_address = transaction['sender_address']
+                        if sender_address == self.wallet.address:
+                            max_nonce = max(max_nonce, transaction['nonce'])
         # The next nonce should be one more than the max found
         return max_nonce + 1
 
@@ -439,8 +433,7 @@ class Node:
                     'validator': currentValidator,
                     'previous_hash': previous_block.current_hash
                 }
-                print("Transaction Pool:")
-                print(f"{self.blockchain.transaction_pool}")
+
                 self.blockchain.transaction_pool = self.blockchain.transaction_pool[self.blockchain.block_capacity:]  
 
                 try: 
