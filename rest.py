@@ -126,7 +126,8 @@ def new_block():
         index=values['index'],
         transactions=values['transactions'],
         validator=values['validator'],
-        previous_hash=values['previous_hash']
+        previous_hash=values['previous_hash'],
+        capacity = node.blockchain.block_capacity
     )
 
     if node.validate_block(new_block):
@@ -147,7 +148,7 @@ def get_full_chain():
 
 @app.route('/nodes/resolve', methods=['GET'])
 def consensus():
-    replaced = blockchain.resolve_conflicts()
+    replaced = node.blockchain.resolve_conflicts()
     if replaced:
         response = {'message': 'Our chain was replaced'}
     else:
@@ -222,12 +223,9 @@ from flask import request
 def start_test():
     data = request.get_json()
     transactions_folder = data.get('transactions_folder')
-
+    node_id = node.get_node_id_by_public_key(node.wallet.public_key)
     if transactions_folder:
-        
-        for node_id, node_info in node.nodes.items():
-            node.start_transaction_test(transactions_folder, node_id)
-        
+        node.start_transaction_test(transactions_folder, node_id)
         return jsonify({'message': f'Transaction tests started for all nodes using folder {transactions_folder}'}), 200
     else:
         return jsonify({'error': 'Missing transactions_folder in JSON data'}), 400

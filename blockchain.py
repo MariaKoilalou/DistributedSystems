@@ -23,20 +23,21 @@ class Blockchain:
             previous_block = self.chain[-1]
 
             # Select transactions for the new block
-            included_transactions = self.transaction_pool[:self.block_capacity]
+            included_transactions = self.transaction_pool[self.block_capacity:]
 
             # Create the new block with the selected transactions
             new_block = Block(
                 index=len(self.chain),
                 transactions=included_transactions,
                 validator=validator,
-                previous_hash=previous_block.current_hash
+                previous_hash=previous_block.current_hash,
+                capacity=self.block_capacity
             )
             new_block.current_hash = new_block.calculate_hash()
             self.add_block(new_block)
 
             # Remove the included transactions from the transaction pool
-            self.transaction_pool = [tx for tx in self.transaction_pool if tx not in included_transactions]
+            self.transaction_pool = self.transaction_pool[:self.block_capacity]
 
             print("Block added to the chain")
         else:

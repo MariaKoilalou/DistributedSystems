@@ -60,7 +60,8 @@ class Node:
                 index=0,
                 transactions=[genesis_transaction.to_dict()],
                 validator=self.wallet.public_key,
-                previous_hash="1"
+                previous_hash="1",
+                capacity=self.blockchain.block_capacity
             )
             self.blockchain.add_block(genesis_block)
             temptrans = Transaction(self.wallet.public_key, 0, "Initial stake", 10, "", 1)
@@ -110,7 +111,6 @@ class Node:
         if response.status_code == 200:
             data = response.json()
             if 'node_address' in data:
-
                 self.update_blockchain(data['blockchain'])
                 self.blockchain.transaction_pool = data['transaction_pool']
                 
@@ -164,13 +164,10 @@ class Node:
 
 
     def get_node_id_by_public_key(self, public_key):
-        # print("Searching for public_key:", public_key)
-        # Iterate over the dictionary items
         for node_id, node_info in self.nodes.items():
-            # print("Comparing with node:", node_id, node_info)
-            if node_info["public_key"] == public_key:
+            if node_info['public_key'] == public_key:
                 print("Match found! Node ID:", node_id)
-                return node_id  # Return the key (node ID)
+                return node_id 
         print("No match found.")
         return None
     
@@ -180,29 +177,23 @@ class Node:
         for block in self.blockchain.chain:
             for transaction in block.transactions:
                 if isinstance(transaction, Transaction):
-                    if transaction.type_of_transaction == "coin" or transaction.type_of_transaction=="message":
-                        sender_address = transaction.sender_address
-                        if sender_address == self.wallet.address:
-                            max_nonce = max(max_nonce, transaction.nonce)
+                    sender_address = transaction.sender_address
+                    if sender_address == self.wallet.address:
+                        max_nonce = max(max_nonce, transaction.nonce)
                 elif isinstance(transaction, dict):
-                     if transaction['type_of_transaction'] == "coin" or transaction['type_of_transaction']=="message":
-                        sender_address = transaction['sender_address']
-                        if sender_address == self.wallet.address:
-                            max_nonce = max(max_nonce, transaction['nonce'])
-        if max_nonce == 0:
-            # Also consider transactions in the transaction pool
-            for transaction in self.blockchain.transaction_pool:
-                if isinstance(transaction, Transaction):
-                    if transaction.type_of_transaction == "coin" or transaction.type_of_transaction=="message":
-                        sender_address = transaction.sender_address
-                        if sender_address == self.wallet.address:
-                            max_nonce = max(max_nonce, transaction.nonce)
-                elif isinstance(transaction, dict):
-                    if transaction['type_of_transaction'] == "coin" or transaction['type_of_transaction']=="message":
-                        sender_address = transaction['sender_address']
-                        if sender_address == self.wallet.address:
-                            max_nonce = max(max_nonce, transaction['nonce'])
-        # The next nonce should be one more than the max found
+                    sender_address = transaction['sender_address']
+                    if sender_address == self.wallet.address:
+                        max_nonce = max(max_nonce, transaction['nonce'])
+
+        for transaction in self.blockchain.transaction_pool:
+            if isinstance(transaction, Transaction):
+                sender_address = transaction.sender_address
+                if sender_address == self.wallet.address:
+                    max_nonce = max(max_nonce, transaction.nonce)
+            elif isinstance(transaction, dict):
+                sender_address = transaction['sender_address']
+                if sender_address == self.wallet.address:
+                    max_nonce = max(max_nonce, transaction['nonce'])
         return max_nonce + 1
 
     def stake(self, amount):
@@ -411,31 +402,19 @@ class Node:
 
 
     def mint_block(self):
-        currentValidator = self.PoS_Choose_Minter(self.blockchain.chain[-1].current_hash)
-        if self.wallet.public_key == currentValidator:
+        current_validator = self.PoS_Choose_Minter(self.blockchain.chain[-1].current_hash)
+        if self.wallet.public_key == current_validator:
             if len(self.blockchain.transaction_pool) >= self.blockchain.block_capacity:
                 previous_block = self.blockchain.chain[-1]
-
-                # Handle both dict and Transaction instances in the transaction pool
-                transactions_data = []
-                for tx in self.blockchain.transaction_pool:
-                    if isinstance(tx, Transaction):
-                        transactions_data.append(tx.to_dict())
-                    elif isinstance(tx, dict):
-                        transactions_data.append(tx)  # tx is already a dict
-                    else:
-                        print("Unsupported transaction type in transaction pool")
-                        continue
-
+                # Extract transactions from the transaction pool in FIFO order
+                transactions_data = self.blockchain.transaction_pool[self.blockchain.block_capacity:]
                 new_block_data = {
                     'index': len(self.blockchain.chain),
                     'transactions': transactions_data,
-                    'validator': currentValidator,
+                    'validator': current_validator,
                     'previous_hash': previous_block.current_hash
                 }
-
-                self.blockchain.transaction_pool = self.blockchain.transaction_pool[self.blockchain.block_capacity:]  
-
+                self.blockchain.transaction_pool = self.blockchain.transaction_pool[:self.blockchain.block_capacity]
                 try: 
                     self.broadcast_block(new_block_data)
                     print("Block broadcasted")
@@ -444,6 +423,7 @@ class Node:
                     return False
             else:
                 print("Transaction pool not full")
+
 
 
 
@@ -510,7 +490,7 @@ class Node:
             except requests.exceptions.RequestException as e:
                 print(f"Error communicating with node at {node_address}: {e}")
 
-    def start_transaction_test(self, transactions_folder, node_id):
+    def start_transaction_test(self, transactions_folder, node_id): 
         transactions_file_path = os.path.join(transactions_folder, f'trans{node_id}.txt')
         if not os.path.exists(transactions_file_path):
             print(f"Transaction file '{transactions_file_path}' does not exist.")
@@ -533,7 +513,10 @@ class Node:
                     print(f"Could not extract recipient ID from: {node_id_part}")
                     continue
 
+                recipient_id = str(recipient_id) 
+
                 for node_id, node_info in self.nodes.items():
+                    node_id = str(node_id).strip()  
                     if node_id == recipient_id:
                         recipient_info = node_info
                         break
@@ -552,6 +535,8 @@ class Node:
             self.transactions_processed = transaction_count
             self.calculate_block_time()
             self.save_metrics(filepath)
+
+
 
 
 
