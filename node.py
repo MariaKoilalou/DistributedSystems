@@ -23,8 +23,6 @@ class Node:
         self.nonce = nonce
         self.wallet = self.generate_wallet()
         self.node_id = 0 if is_bootstrap else None
-        self.transactions = 0
-        self.total_processing_time = 0
         self.nodes = {}
         
         
@@ -500,11 +498,9 @@ class Node:
             except requests.exceptions.RequestException as e:
                 print(f"Error communicating with node at {node_address}: {e}")
 
-        
-        metrics_filepath = f'metrics_{self.total_nodes}_nodes_capacity{self.blockchain.block_capacity}.txt'
-        self.save_metrics(metrics_filepath)
 
     def start_transaction_test(self, transactions_folder, node_id): 
+        self.node_id = node_id
         transactions_file_path = os.path.join(transactions_folder, f'trans{node_id}.txt')
         if not os.path.exists(transactions_file_path):
             print(f"Transaction file '{transactions_file_path}' does not exist.")
@@ -515,6 +511,7 @@ class Node:
         with open(filepath, 'r') as file:
             start_time = time.time()
             transaction_count = 0
+            node_transactions = 0
             for line in file:
                 parts = line.strip().split(' ', 1)
                 if len(parts) != 2:
@@ -546,23 +543,30 @@ class Node:
 
             end_time = time.time()
             processing_time = end_time - start_time
-            self.total_processing_time += processing_time
-            self.transactions += transaction_count
+            node_transactions += transaction_count
+
+            metrics_filepath = f'metrics_{self.total_nodes}_nodes_capacity{self.blockchain.block_capacity}_for_node{self.node_id}.txt'
+            self.save_metrics(metrics_filepath, processing_time, node_transactions)
 
 
     def count_blocks(self):
-        valid_blocks = [block for block in self.blockchain.chain if not any(
-            tx['type_of_transaction'] in ["genesis", "Initial stake", "Welcome!"] for tx in block.transactions)]
-        return len(valid_blocks)
+        if not self.blockchain.chain:
+            print("Blockchain chain is empty.")
+            return 0
+        else:
+            block_count = len(self.blockchain.chain)
+            print(f"Blockchain contains {block_count} blocks.")
+            return block_count
+
     
-    def save_metrics(self, metrics_filename):
-        if self.transactions == 0:
+    def save_metrics(self, metrics_filename, processing_time, node_transactions):
+        if node_transactions == 0:
             print("No transactions to calculate metrics.")
             return
 
-        block_count = self.count_blocks()  
-        throughput = self.transactions / self.total_processing_time
-        block_time = self.total_processing_time / block_count if block_count else 0
+        # block_count = self.count_blocks()  
+        throughput = node_transactions / processing_time if processing_time > 0 else 0
+        # block_time = self.total_processing_time / block_count if block_count else 0
 
         current_directory = os.getcwd()  # Get the current working directory
         directory_path = os.path.join(current_directory, 'test_results')  # Form the path to the test_results directory
@@ -574,9 +578,51 @@ class Node:
         # Write the metrics to the file
         try:
             with open(filepath, 'w') as file:
-                file.write(f"Transactions: {self.transactions}\n")
+                file.write(f"Transactions: {node_transactions}\n")
                 file.write(f"Throughput: {throughput} transactions/second\n")
-                file.write(f"Block Count: {block_count}\n")
-                file.write(f"Average Block Time: {block_time} seconds/block\n")
+                # file.write(f"Block Count: {block_count}\n")
+                # file.write(f"Average Block Time: {block_time} seconds/block\n")
         except Exception as e:
             print(f"Failed to save metrics: {e}")
+
+        self.aggregate_metrics(total_nodes = self.total_nodes, folder_path='test_results/', output_filename=f'metrics_{self.total_nodes}_nodes_capacity{self.blockchain.block_capacity}.txt')
+
+    def aggregate_metrics(self, total_nodes, folder_path, output_filename):
+    
+        files = [f for f in os.listdir(folder_path) if os.path.isfile(os.path.join(folder_path, f))]
+        
+        # Check if the number of metric files matches the total number of nodes
+        if len(files) == total_nodes:
+            total_transactions = 0
+            longest_processing_time = 0
+            block_count = 0
+
+            # Iterate through each file and aggregate the metrics
+            for file in files:
+                with open(os.path.join(folder_path, file), 'r') as f:
+                    for line in f:
+                        if "Transactions" in line:
+                            total_transactions += int(line.split(":")[1].strip())
+                        elif "Throughput" in line:
+                            processing_time = float(line.split(":")[1].strip().split()[0])  
+                            longest_processing_time = max(longest_processing_time, processing_time)
+
+            
+            # Calculate new aggregated metrics
+            throughput = total_transactions / longest_processing_time if longest_processing_time > 0 else 0
+            block_count = self.count_blocks()  
+            block_time = processing_time / block_count if block_count else 0
+
+            output_filepath = os.path.join(folder_path, output_filename)
+            with open(output_filepath, 'w') as output_file:
+                output_file.write(f"Total Transactions: {total_transactions}\n")
+                output_file.write(f"Total Throughput: {throughput} transactions/second\n")
+                output_file.write(f"Total Block Count: {block_count}\n")
+                output_file.write(f"Average Block Time: {block_time} seconds/block\n")
+            
+            print(f"Aggregated metrics saved to {output_filepath}")
+                   
+            for file_name in files:
+                os.remove(os.path.join(folder_path, file_name))
+                print(f"Deleted {file_name}")
+
