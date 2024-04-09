@@ -402,27 +402,41 @@ class Node:
 
 
     def mint_block(self):
-        current_validator = self.PoS_Choose_Minter(self.blockchain.chain[-1].current_hash)
-        if self.wallet.public_key == current_validator:
-            if len(self.blockchain.transaction_pool) >= self.blockchain.block_capacity:
-                previous_block = self.blockchain.chain[-1]
-                # Extract transactions from the transaction pool in FIFO order
-                transactions_data = self.blockchain.transaction_pool[self.blockchain.block_capacity:]
-                new_block_data = {
-                    'index': len(self.blockchain.chain),
-                    'transactions': transactions_data,
-                    'validator': current_validator,
-                    'previous_hash': previous_block.current_hash
-                }
-                self.blockchain.transaction_pool = self.blockchain.transaction_pool[:self.blockchain.block_capacity]
-                try: 
-                    self.broadcast_block(new_block_data)
-                    print("Block broadcasted")
-                except Exception as e:
-                    print(f"Broadcast block failed: {e}")
-                    return False
-            else:
-                print("Transaction pool not full")
+            currentValidator = self.PoS_Choose_Minter(self.blockchain.chain[-1].current_hash)
+            if self.wallet.public_key == currentValidator:
+                if len(self.blockchain.transaction_pool) == self.blockchain.block_capacity:
+                    previous_block = self.blockchain.chain[-1]
+
+                    # Handle both dict and Transaction instances in the transaction pool
+                    transactions_data = []
+                    for tx in self.blockchain.transaction_pool:
+                        if isinstance(tx, Transaction):
+                            transactions_data.append(tx.to_dict())
+                        elif isinstance(tx, dict):
+                            transactions_data.append(tx)  # tx is already a dict
+                        else:
+                            print("Unsupported transaction type in transaction pool")
+                            continue
+
+                    new_block_data = {
+                        'index': len(self.blockchain.chain),
+                        'transactions': transactions_data,
+                        'validator': currentValidator,
+                        'previous_hash': previous_block.current_hash
+                    }
+
+                    self.blockchain.transaction_pool = self.blockchain.transaction_pool[self.blockchain.block_capacity:]  
+
+                    try: 
+                        self.broadcast_block(new_block_data)
+                        print("Block broadcasted")
+                    except Exception as e:
+                        print(f"Broadcast block failed: {e}")
+                        return False
+                else:
+                    print("Transaction pool not full")
+
+
 
 
 
