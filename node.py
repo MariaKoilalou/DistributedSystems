@@ -585,7 +585,29 @@ class Node:
         except Exception as e:
             print(f"Failed to save metrics: {e}")
 
-        self.aggregate_metrics(total_nodes = self.total_nodes, folder_path='test_results/', output_filename=f'metrics_{self.total_nodes}_nodes_capacity{self.blockchain.block_capacity}.txt')
+        metrics = {
+        'node_id': self.node_id,
+        'transactions': node_transactions,
+        'throughput': throughput,
+        }
+
+        # Broadcast metrics to all nodes
+        self.broadcast_metrics_to_all_nodes(metrics)
+
+        # self.aggregate_metrics(total_nodes = self.total_nodes, folder_path='test_results/', output_filename=f'metrics_{self.total_nodes}_nodes_capacity{self.blockchain.block_capacity}.txt')
+
+    def broadcast_metrics_to_all_nodes(self, metrics):
+        for node_id, node_info in self.nodes.items():
+            if node_id != self.node_id: 
+                try:
+                    response = requests.post(f"{node_info['address']}/receive_metrics", json=metrics)
+                    if response.status_code == 200:
+                        print(f"Metrics successfully sent to node {node_id}")
+                    else:
+                        print(f"Failed to send metrics to node {node_id}. Status code: {response.status_code}")
+                except Exception as e:
+                    print(f"Error sending metrics to node {node_id}: {e}")
+
 
     def aggregate_metrics(self, total_nodes, folder_path, output_filename):
     
