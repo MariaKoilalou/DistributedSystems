@@ -1,0 +1,4 @@
+Total Transactions: 1000
+Total Throughput: 201.1075758934021 transactions/second
+Total Block Count: 102
+Average Block Time: 0.044775071148462825 seconds/block

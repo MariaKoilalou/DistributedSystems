@@ -1,0 +1,2 @@
+Transactions: 100
+Throughput: 8.773649982383896 transactions/second

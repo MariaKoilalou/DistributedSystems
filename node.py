@@ -23,6 +23,11 @@ class Node:
         self.nonce = nonce
         self.wallet = self.generate_wallet()
         self.node_id = 0 if is_bootstrap else None
+        self.total_transactions = 0
+        self.throughput = 0
+        longest_processing_time = 0
+        self.block_count = 0
+        self.block_count = 0
         self.nodes = {}
         
         
@@ -580,6 +585,8 @@ class Node:
             with open(filepath, 'w') as file:
                 file.write(f"Transactions: {node_transactions}\n")
                 file.write(f"Throughput: {throughput} transactions/second\n")
+                # file.write(f"Block Count: {block_count}\n")
+                # file.write(f"Average Block Time: {block_time} seconds/block\n")
         except Exception as e:
             print(f"Failed to save metrics: {e}")
 
@@ -591,33 +598,38 @@ class Node:
         
         # Check if the number of metric files matches the total number of nodes
         if len(files) == total_nodes:
-            total_transactions = 0
             longest_processing_time = 0
-            block_count = 0
-
+            self.total_transactions=0
+            self.throughput=0
+            self.block_count=0
+            self.block_time=0
             # Iterate through each file and aggregate the metrics
             for file in files:
                 with open(os.path.join(folder_path, file), 'r') as f:
                     for line in f:
                         if "Transactions" in line:
-                            total_transactions += int(line.split(":")[1].strip())
+                            self.total_transactions += int(line.split(":")[1].strip())
                         elif "Throughput" in line:
                             processing_time = float(line.split(":")[1].strip().split()[0])  
                             longest_processing_time = max(longest_processing_time, processing_time)
-
-            
+  
             # Calculate new aggregated metrics
-            throughput = total_transactions / longest_processing_time if longest_processing_time > 0 else 0
-            block_count = self.count_blocks()  
-            block_time = processing_time / block_count if block_count else 0
+            self.throughput = self.total_transactions / longest_processing_time if longest_processing_time > 0 else 0
+            self.block_count = self.count_blocks()  
+            self.block_time = processing_time / self.block_count if self.block_count else 0
 
             output_filepath = os.path.join(folder_path, output_filename)
             with open(output_filepath, 'w') as output_file:
-                output_file.write(f"Total Transactions: {total_transactions}\n")
-                output_file.write(f"Total Throughput: {throughput} transactions/second\n")
-                output_file.write(f"Total Block Count: {block_count}\n")
-                output_file.write(f"Average Block Time: {block_time} seconds/block\n")
+                output_file.write(f"Total Transactions: {self.total_transactions}\n")
+                output_file.write(f"Total Throughput: {self.throughput} transactions/second\n")
+                output_file.write(f"Total Block Count: {self.block_count}\n")
+                output_file.write(f"Average Block Time: {self.block_time} seconds/block\n")
             
             print(f"Aggregated metrics saved to {output_filepath}")
-                   
+
+    def take_metrics(self):
+        print(f"Total Transactions: {self.total_transactions}\n")
+        print(f"Total Throughput: {self.throughput} transactions/second\n")
+        print(f"Total Block Count: {self.block_count}\n")
+        print(f"Average Block Time: {self.block_time} seconds/block\n")
 

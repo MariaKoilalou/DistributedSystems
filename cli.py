@@ -31,6 +31,9 @@ def run_cli(node_instance, shutdown_event):
                 node_instance.start_test_all_nodes(node_addresses, transactions_folder)
                 print(f"Started transaction test for all nodes using transactions from '{transactions_folder}' folder.")
 
+        if action == 'take metrics':
+            node_instance.take_metrics()
+
         if action == 'balance':
             my_balance = node_instance.calculate_balance(node_instance.wallet.public_key)
             my_stakes = node_instance.calculate_stakes(node_instance.wallet.public_key)
