@@ -223,61 +223,6 @@ def start_test():
         return jsonify({'error': 'Missing transactions_folder in JSON data'}), 400
 
 
-def report_transactions(self, transaction_count):
-        # This function would be called to report this node's transaction count to the central node
-        central_node_url = "http://central-node-address:port/report"  # Adjust this to your central node's address
-        try:
-            response = requests.post(central_node_url, json={'node_id': self.node_id, 'transactions': transaction_count})
-            if response.status_code == 200:
-                print("Reported transaction count successfully")
-            else:
-                print("Failed to report transaction count")
-        except requests.exceptions.RequestException as e:
-            print(f"Error reporting transaction count: {e}")
-
-@app.route('/receive_metrics', methods=['POST'])
-def receive_metrics():
-    received_metrics = request.get_json()
-    node_id = received_metrics.get('node_id')
-
-    # Save the metrics to a file
-    save_metrics_to_file(node_id, received_metrics)
-
-    # Broadcast the received metrics to all other nodes
-    broadcast_metrics_to_all_nodes(received_metrics)
-
-    return jsonify({'message': 'Metrics received and broadcasted'}), 200
-
-def save_metrics_to_file(node_id, metrics):
-    directory_path = 'test_results'
-    os.makedirs(directory_path, exist_ok=True)
-    filepath = os.path.join(directory_path, f'metrics_node_{node_id}.txt')
-    
-    with open(filepath, 'w') as file:
-        file.write(json.dumps(metrics))
-    
-    # After saving, check if all metrics are received
-    check_and_aggregate_metrics(node.total_nodes, directory_path, 'aggregated_metrics.txt')
-
-def broadcast_metrics_to_all_nodes(metrics):
-    for node_id, node_info in node.nodes.items():
-        if node_id != metrics['node_id']:  # Avoid sending back to the sender
-            try:
-                response = requests.post(f"{node_info['address']}/receive_metrics", json=metrics)
-                if response.status_code == 200:
-                    print(f"Metrics successfully broadcasted to node {node_id}")
-                else:
-                    print(f"Failed to broadcast metrics to node {node_id}. Status code: {response.status_code}")
-            except Exception as e:
-                print(f"Error broadcasting metrics to node {node_id}: {e}")
-
-def check_and_aggregate_metrics(total_nodes, folder_path, output_filename):
-    files = [f for f in os.listdir(folder_path) if os.path.isfile(os.path.join(folder_path, f))]
-    
-    if len(files) == total_nodes:
-        node.aggregate_metrics(total_nodes, folder_path, output_filename)
-
-
 if __name__ == '__main__':
     import argparse
 
